@@ -34,7 +34,7 @@
 
 locals {
   meridian_namespace = module.namespace["meridian"].name
-  meridian_release   = "9855b9e56c016c34b47c26c1f93d8af6346c447d"
+  meridian_release   = "bad97c27cfcdfed9e352c66202e498e6750a664e"
   meridian_labels = {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
