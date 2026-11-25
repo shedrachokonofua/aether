@@ -177,6 +177,7 @@ and a cold session's first turn may run before MCP discovery finishes.
 | `yourspotify` | `pentafive/your-spotify-mcp` `9e0e606` via supergateway, `:8015` | `yourspotify.mcp_public_token` | 13 read tools |
 | `shop` | hosted `mcp.shop.com` | none (signed out) | none |
 | `pharos` | Service `pharos` in namespace `pharos`, over cluster DNS | the Pharos MCP token (`random_password.pharos_mcp_token`, also OpenBao `kv/pharos/mcp`) | none (9 read-only tools) |
+| `x_bridge` | Service `x-bridge` in namespace `x-bridge`, over cluster DNS | the x-bridge MCP token (`random_password.x_bridge_mcp_token`) | none (8 tools; `start_job` queues read-only X jobs) |
 
 Approval policy lives in the Orion grants, not the gateway. Server notes:
 
@@ -374,6 +375,19 @@ tools (eight from Orion release `d12bd301`, with `pharos_search_ideas` from
 `fb051169`), and the built-in skill `pharos-library` (Orion chart,
 `orion-skills` version 8) tells the agent to search ideas for a topic, or to
 find a book and load it. See [AI/ML](ai-ml.md#pharos).
+
+### x-bridge
+
+The registry entry is `http://x-bridge.x-bridge.svc.cluster.local/mcp`
+(`transport: http`). x-bridge archives Shedrach's X bookmarks, likes,
+timeline, searches and single tweets through a logged-in Deskplane browser
+(see [PaaS](paas.md#x-bridge)). Like pop, it serves its own agent skill over
+the MCP (`x_bridge-skill`, also resource `x-bridge://skill`); Orion bundles no
+skill for it, and the system prompt sends the agent to `x_bridge-skill` first.
+The `orion` and `orion-molecule` Agents hold an `x_bridge` grant for all eight
+tools from Orion release `00d4f20a`. `start_job` queues a job (identical
+queued or running jobs coalesce); jobs only read X, run one at a time and take
+minutes. Resuming a paused queue is not exposed to agents.
 
 ## Polymarket Task Egress
 
