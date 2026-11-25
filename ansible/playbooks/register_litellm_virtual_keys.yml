@@ -168,6 +168,12 @@
         - moira/flash
         - moira/balanced
 
+      # Meridian (tofu/home/kubernetes/meridian.tf): tool search by meaning.
+      # It embeds tool descriptions and questions, and reranks candidates.
+      meridian:
+        - aether/qwen3-embedding:0.6b
+        - aether/qwen3-reranker-4b
+
       deskplane_mcp:
         # Moira group (tiers.yaml): terra -> gemini-4-hydrogen -> qwen3.8-flash-next.
         - moira/computer-use
