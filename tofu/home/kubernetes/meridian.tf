@@ -43,7 +43,7 @@ locals {
     "ticketmaster", "time", "tmdb", "withings", "x_bridge", "yourspotify",
   ]
   # so/orion commit whose chart skills are served.
-  meridian_orion_skills_commit = "d6d624c9b7b370860da136e5720bef3226b55406"
+  meridian_orion_skills_commit = "39778d5bb16af53e11f3053e77efc026503db13b"
 
   meridian_config = {
     issuers = {
