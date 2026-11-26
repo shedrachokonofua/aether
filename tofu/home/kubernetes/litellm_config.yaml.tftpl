@@ -1221,35 +1221,6 @@ general_settings:
   disable_model_info_refresh: true
 
 mcp_servers:
-  time:
-    url: "http://time.mcp.svc.cluster.local:8003/mcp"
-  comfyui:
-    # Official Comfy-Org comfy-mcp (mcp.tf comfyui) driving the
-    # in-cluster ComfyUI. Only generation, template, workflow and job tools
-    # are exposed. Blocked: install/update/version switching, model downloads,
-    # launch/stop/restart and logs (they act on the server, which has no
-    # ComfyUI), partner/auth/billing (Comfy credits), and upload_file (it
-    # uploads any file the server can read into ComfyUI's input dir).
-    url: "http://comfyui.mcp.svc.cluster.local:8008/mcp"
-    allowed_tools:
-      - server_info
-      - system_stats
-      - free_memory
-      - generate_image
-      - run_template
-      - run_workflow
-      - job
-      - fetch_outputs
-      - search_templates
-      - get_template
-      - fetch_template
-      - list_workflow_slots
-      - list_workflow_notes
-      - set_workflow_slot
-      - vary_workflow
-      - validate_workflow
-      - nodes
-      - search_models
   # Web data (scrape/crawl/search/parse) is deskplane, below.
   finviz:
     url: "http://finviz.mcp.svc.cluster.local:8000/mcp"
@@ -1278,15 +1249,8 @@ mcp_servers:
     client_id: "litellm-mcp-exchange"
     client_secret: "${daimyo_mcp_exchange_secret}"
     audience: "daimyo"
-  espn:
-    url: "http://espn.mcp.svc.cluster.local:8080/mcp"
-  tmdb:
-    url: "http://tmdb.mcp.svc.cluster.local:8006/mcp"
-  jellyfin:
-    url: "http://jellyfin.mcp.svc.cluster.local:8007/mcp"
-  # The other servers in the mcp namespace (Home Assistant, Karakeep,
-  # Nextcloud, PubMed, openFDA, OpenAlex, Anna's Archive, Your Spotify,
-  # Ticketmaster) are reached through Meridian only (meridian.tf).
+  # The other servers in the mcp namespace (mcp.tf) are reached through
+  # Meridian only (meridian.tf).
   # Shop (hosted, https://mcp.shop.com/, root path: /mcp 404s). It speaks MCP
   # 2026-07-28 and opens with server/discover; LiteLLM's default `initialize`
   # handshake is refused, so the version is pinned. Each call is one stateless
@@ -1437,7 +1401,3 @@ mcp_servers:
     transport: http
     auth_type: bearer_token
     auth_value: "${x_bridge_mcp_token}"
-%{ if google_maps_enabled ~}
-  google_maps:
-    url: "http://google-maps.mcp.svc.cluster.local:8004/mcp"
-%{ endif ~}

@@ -47,9 +47,9 @@ locals {
   )
 
   # The servers LiteLLM still routes to (litellm_config.yaml.tftpl
-  # mcp_servers): the ones OpenWebUI's and Foundry's keys may use, and
-  # qbittorrent, whose SSE Meridian does not speak.
-  mcp_litellm_routes = ["comfyui", "espn", "finviz", "google-maps", "jellyfin", "qbittorrent", "time", "tmdb"]
+  # mcp_servers): finviz, which Foundry's key may use, and qbittorrent, whose
+  # SSE Meridian does not speak.
+  mcp_litellm_routes = ["finviz", "qbittorrent"]
 
   # The upstream credential each server is given, by server name.
   mcp_secrets = merge(

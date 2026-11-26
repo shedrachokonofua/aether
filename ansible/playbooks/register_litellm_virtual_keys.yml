@@ -189,21 +189,15 @@
     # must track litellm_config.yaml.tftpl's mcp_servers. Works over /mcp/
     # (what OpenWebUI uses); LiteLLM 1.99.1's /mcp-rest search returns [].
     litellm_openwebui_mcp_servers:
-      - time
       - finviz
-      - comfyui
       # oauth_delegate: tools run as the OpenWebUI user's forwarded token.
       - pop
       # oauth2_token_exchange: tools run as the user via a Keycloak-exchanged
       # daimyo-audience token (keycloak.tf litellm_mcp_exchange).
       - daimyo
-      - espn
-      - tmdb
-      - jellyfin
       - deskplane
       - siren
       - fm
-      - google_maps
     # The seven30-foundry key was created through the LiteLLM API (its value is
     # not in SOPS), so it is found by alias and updated by its hashed token.
     # Foundry's agents send the same list in x-mcp-servers; the key permission is
@@ -225,16 +219,10 @@
     litellm_daimyo_orion_mcp_servers:
       - clickstack
       - siren
-      - jellyfin
       - shop
       - withings
-      - comfyui
-      - espn
       - finviz
       - fm
-      - google_maps
-      - time
-      - tmdb
       - instacart
       - qbittorrent
       - pharos

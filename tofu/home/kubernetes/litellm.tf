@@ -24,7 +24,6 @@ locals {
     daimyo_mcp_exchange_secret = var.litellm_mcp_exchange_client_secret
     fm_mcp_token               = random_password.fm_mcp_token.result
     hyperdx_mcp_token          = var.secrets["hyperdx.api_key"]
-    google_maps_enabled        = var.litellm_google_maps_enabled
     pharos_mcp_token           = random_password.pharos_mcp_token.result
     qbittorrent_mcp_token      = random_password.litellm_qbit_mcp.result
     sourcegull_mcp_token       = data.vault_kv_secret_v2.sourcegull_mcp.data["token"]
