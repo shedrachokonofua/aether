@@ -12,3 +12,8 @@ deleteRules:
   # verified WITHOUT the tsc=reliable pin.
   - orgId: 1
     uid: smith-high-system-cpu
+  # wazuh-high-severity: Wazuh removed 2026-11 (no agents were ever enrolled, so
+  # the rule could not fire). Host detection is the host-* rules in
+  # infra-security.yml.
+  - orgId: 1
+    uid: wazuh-high-severity

@@ -13,8 +13,12 @@ receivers:
     convert_message_bytes: true
     matches:
       - _UID: "1000"
+{# journald matches are exact: _SYSTEMD_UNIT is "sshd.service", never "sshd". #}
 {% for unit in (monitored_systemd_units + (monitored_systemd_units_extra | default([]))) %}
-      - _SYSTEMD_UNIT: {{ unit }}
+      - _SYSTEMD_UNIT: {{ unit if '.' in unit else unit ~ '.service' }}
+{% endfor %}
+{% for identifier in (monitored_syslog_identifiers | default([])) %}
+      - SYSLOG_IDENTIFIER: {{ identifier }}
 {% endfor %}
     operators:
       - type: copy

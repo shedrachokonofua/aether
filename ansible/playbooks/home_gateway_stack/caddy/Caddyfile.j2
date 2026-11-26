@@ -313,28 +313,6 @@ clickhouse.home.shdr.ch {
   reverse_proxy {{ vm.monitoring_stack.ip }}:{{ vm.monitoring_stack.ports.clickhouse }}
 }
 
-wazuh.home.shdr.ch {
-  import home_acme_dns
-  import access_logs
-  reverse_proxy https://{{ vm.ids_stack.ip }}:{{ vm.ids_stack.ports.wazuh_api }} {
-    transport http {
-      tls
-      tls_insecure_skip_verify
-    }
-  }
-}
-
-hids.home.shdr.ch {
-  import home_acme_dns
-  import access_logs
-  reverse_proxy https://{{ vm.ids_stack.ip }}:{{ vm.ids_stack.ports.wazuh_dashboard }} {
-    transport http {
-      tls
-      tls_insecure_skip_verify
-    }
-  }
-}
-
 kvm.home.shdr.ch {
   import home_acme_dns
   import access_logs

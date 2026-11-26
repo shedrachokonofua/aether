@@ -328,7 +328,7 @@ the provisioning directory is authoritative for the declared inventory.
 | ntfy            | Push notification delivery                    |
 | IDS Monitoring  | Suricata alerts + Zeek analytics (ClickHouse) |
 | Certificates    | Public TLS runway, VM/LXC machine identities, cert-manager inventory, renewal units, and certificate alerts (uid `certificates`) |
-| Security Triage | **Single actionable security surface** — firing security-alert queue (`domain=security`) + per-head signal stats & recent-event tables (Suricata, Zeek, Hubble, Tetragon, Trivy, Wazuh, Keycloak) + drill-down links (uid `security-triage`) |
+| Security Triage | **Single actionable security surface** — firing security-alert queue (`domain=security`) + per-head signal stats & recent-event tables (Suricata, Zeek, Hubble, Tetragon, Trivy, host auth, Keycloak) + drill-down links (uid `security-triage`) |
 | Home            | Cross-cutting triage: firing alerts, certificate issues, namespace-contract risk map, saturation/headroom, signal-path health (uid `home`) |
 | Site Fabric   | Aether site-fabric target health, WireGuard peer age and traffic, and CrowdSec decisions (uid `site-fabric`) |
 | Deskplane v2 | Deskplane web data platform: scrape ops, cache, escalations, browser pool, event-loop lag, jobs, sessions, webhooks; SQL rules in `tofu/home/kubernetes/grafana/alerting/rules/deskplane.yml` are paused |
@@ -483,7 +483,8 @@ First-match routing tree (`tofu/home/kubernetes/grafana/alerting/notification-po
 Each security signal is assigned exactly one bucket:
 
 - **page** — Suricata sev-1 (post-soak), Tetragon escape-class policies
-  (post-soak), Wazuh rule level ≥ 12 (post-soak), PSS `FailedCreate`.
+  (post-soak), SSH login from a new source, unexpected sudo, PSS
+  `FailedCreate`.
 - **digest** — Suricata sev-1/2 daily review, Zeek notices, Tetragon
   untrusted-tier policies, Trivy criticals in `backup=critical` /
   `exposure=public` namespaces, Keycloak login-failure bursts, Fleet
@@ -492,6 +493,52 @@ Each security signal is assigned exactly one bucket:
 - **forensics-only (deliberately no alert)** — Zeek conn/dns/http/ssl/weird,
   Suricata sev-3, Hubble flows, Fleet live/scheduled query history. Query these
   in Grafana/ClickHouse/Fleet; they are evidence, not pages.
+
+### Host authentication detection
+
+Host-layer detection reads journald, not a separate HIDS. Wazuh was removed in
+2026-11: its manager, indexer and dashboard ran on `ids-stack` but no agent was
+ever enrolled, so its alert rule could not fire.
+
+Every host ships its `sshd`, `sshd-session`, `sudo` and `su` journal entries:
+
+- Ansible-managed VMs: the `vm_monitoring_agent` role matches them by
+  `SYSLOG_IDENTIFIER` (`monitored_syslog_identifiers`). Unit names cannot be
+  used for this: SSH is `ssh.service` on Debian, `sshd.service` on Fedora and
+  `sshd@<conn>.service` when socket-activated, and sudo logs under the calling
+  session's scope.
+- NixOS VMs: the `otel-agent` module ships the whole journal.
+- Proxmox hosts and the three VPSes: the journal forwarder pulls the whole
+  journal.
+
+Two materialized views on `otel.otel_logs`
+(`ansible/playbooks/monitoring_stack/clickhouse/21-host-auth-events.sql`) fill
+small tables at insert time, because a raw body scan over a useful baseline is
+too slow for an alert rule (about 17s for 7 days through the read-only
+identity):
+
+| Table | Contents | Retention |
+| --- | --- | --- |
+| `aether.host_auth_events` | One row per accepted SSH login, sudo command, or denied sudo attempt: `Host`, `Kind`, `User`, `Source`, `Detail` | 400 days |
+| `aether.host_log_heartbeat` | Log rows per host per hour | 120 days |
+
+Three rules in `infra-security.yml` read them:
+
+| Rule | Fires when | Severity |
+| --- | --- | --- |
+| `host-ssh-login-new-source` | An accepted login's (host, user, source) was first seen in the last 30 minutes against a 90-day baseline | critical (pages) |
+| `host-sudo-unexpected` | sudo was denied, or a user ran sudo on a host for the first time in 90 days | critical (pages) |
+| `host-logs-absent` | A host that logged in the last 30 days has shipped nothing for 24 hours | warning |
+
+Private and tailnet sources are compared as a /24, so a DHCP renewal on a known
+network is not a new source; public sources are compared exactly. The two
+login rules arm per host one day after that host's first recorded event, so
+the first logins to a host that has just started shipping do not alert. The
+tables start empty: there is no backfill from `otel_logs`.
+
+The views run on every insert into `otel.otel_logs`. A view that throws would
+fail the insert, so they use only non-throwing functions; keep it that way
+when editing them.
 
 ### Argos network-beacon detector
 

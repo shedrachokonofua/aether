@@ -1,5 +1,5 @@
 # IDS Stack - Intrusion Detection System (NixOS)
-# Suricata (NIDS) + Zeek (protocol analysis) + Wazuh Manager (HIDS)
+# Suricata (NIDS) + Zeek (protocol analysis)
 #
 # Network Configuration:
 #   - eth0: Management interface on Infrastructure VLAN (10.0.2.7)
@@ -27,7 +27,7 @@ resource "proxmox_virtual_environment_vm" "ids_stack" {
   vm_id       = local.vm.ids_stack.id
   name        = local.vm.ids_stack.name
   node_name   = local.vm.ids_stack.node
-  description = "IDS Stack - Suricata + Zeek + Wazuh Manager"
+  description = "IDS Stack - Suricata + Zeek"
 
   stop_on_destroy = true
 
@@ -81,20 +81,4 @@ resource "proxmox_virtual_environment_vm" "ids_stack" {
     prevent_destroy = true
     ignore_changes  = [disk[0].file_id, initialization[0].user_data_file_id]
   }
-}
-
-# =============================================================================
-# OpenBao Secrets
-# =============================================================================
-# Synced from SOPS → OpenBao KV → vault-agent on VM
-
-resource "vault_kv_secret_v2" "wazuh" {
-  mount = vault_mount.kv.path
-  name  = "aether/wazuh"
-
-  data_json = jsonencode({
-    indexer_password   = var.secrets["wazuh.indexer_password"]
-    api_password       = var.secrets["wazuh.api_password"]
-    dashboard_password = var.secrets["wazuh.dashboard_password"]
-  })
 }

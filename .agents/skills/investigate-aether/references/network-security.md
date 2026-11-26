@@ -66,7 +66,8 @@ The provisioned IDS Monitoring and Security Triage dashboard JSON contains addit
 ## Other Security Surfaces
 
 - ClickHouse metrics (`otel.otel_metrics_*`): Hubble drops, Trivy reports, namespace contracts (`aether.namespace_contract`), Tetragon metrics.
-- ClickHouse logs (`otel.otel_logs`): Tetragon events, Wazuh logs, Keycloak login failures, Kubernetes audit-style application logs.
+- ClickHouse logs (`otel.otel_logs`): Tetragon events, Keycloak login failures, Kubernetes audit-style application logs.
+- Host logins (`aether.host_auth_events`): accepted SSH logins, sudo commands and denied sudo attempts per host; `aether.host_log_heartbeat` has log rows per host per hour.
 - Kubernetes: Cilium policies, Kyverno/PolicyReports, Trivy reports, Tetragon pods/policies.
 - Fleet: host posture and query results, with partial enrollment caveats.
 - VyOS/AdGuard/Caddy: use repo-defined host access and bounded logs for routing, DNS, or proxy questions.

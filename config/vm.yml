@@ -272,10 +272,6 @@ ids_stack:
   gateway: "10.0.2.1"
   ports:
     suricata_metrics: 9917
-    wazuh_api: 55000
-    wazuh_agent: 1514
-    wazuh_registration: 1515
-    wazuh_dashboard: 5601
 
 nix_builder:
   id: 1033

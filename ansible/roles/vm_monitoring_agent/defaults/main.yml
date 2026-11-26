@@ -37,7 +37,8 @@ podman_metrics_initial_delay: "1s"
 docker_metrics_collection_interval: "15s"
 docker_metrics_initial_delay: "1s"
 
-# Journald units to monitor (can be overridden in inventory/group_vars)
+# Journald units to monitor (can be overridden in inventory/group_vars).
+# A name without a suffix gets ".service" appended in the collector config.
 monitored_systemd_units:
   - sshd
   - auditd
@@ -50,6 +51,17 @@ monitored_systemd_units:
 # Extra journald units to monitor on top of monitored_systemd_units (per-host override).
 # Defaults to empty so existing hosts are unchanged.
 monitored_systemd_units_extra: []
+
+# Journald entries to ship by syslog identifier, whatever unit they ran under.
+# SSH is "ssh.service" on Debian, "sshd.service" on Fedora and
+# "sshd@<conn>.service" when socket-activated, and sudo logs under the calling
+# session's scope, so the unit list cannot catch them. These feed
+# aether.host_auth_events (monitoring_stack/clickhouse/21-host-auth-events.sql).
+monitored_syslog_identifiers:
+  - sshd
+  - sshd-session
+  - sudo
+  - su
 
 # File log patterns
 file_log_patterns:

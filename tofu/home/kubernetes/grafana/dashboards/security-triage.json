@@ -342,7 +342,7 @@
     },
     {
       "type": "row",
-      "title": "Runtime · Image · HIDS · Identity — Tetragon / Trivy / Wazuh / Keycloak",
+      "title": "Runtime · Image · Host auth · Identity — Tetragon / Trivy / journald / Keycloak",
       "id": 8,
       "collapsed": false,
       "gridPos": {
@@ -474,9 +474,9 @@
     },
     {
       "type": "stat",
-      "title": "Wazuh rule ≥ 12 (15m)",
+      "title": "New SSH sources + sudo denials (24h)",
       "id": 11,
-      "description": "",
+      "description": "(host, user, source) SSH logins first seen in the last 24h against a 90-day baseline, plus denied sudo attempts. Source: aether.host_auth_events.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -490,7 +490,7 @@
             "uid": "clickhouse"
           },
           "format": 1,
-          "rawSql": "SELECT count() AS value FROM otel.otel_logs WHERE Timestamp >= now() - INTERVAL 15 MINUTE AND ServiceName='intrusion-detection-stack' AND JSONExtractString(Body,'CONTAINER_NAME')='wazuh' AND toFloat64OrNull(JSONExtractString(JSONExtractString(Body,'MESSAGE'),'rule','level')) >= 12",
+          "rawSql": "SELECT (SELECT count() FROM (SELECT Host, User, Source FROM aether.host_auth_events WHERE Kind = 'ssh_accepted' AND Timestamp > now() - INTERVAL 90 DAY GROUP BY Host, User, Source HAVING min(Timestamp) > now() - INTERVAL 24 HOUR)) + (SELECT count() FROM aether.host_auth_events WHERE Kind = 'sudo_denied' AND Timestamp > now() - INTERVAL 24 HOUR) AS value",
           "refId": "A",
           "queryType": "sql",
           "editorType": "sql"

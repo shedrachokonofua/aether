@@ -460,13 +460,6 @@ let
         reason = "declared Headlamp (accepted)";
       }
       {
-        template_id = "wazuh-panel";
-        host = "hids.home.shdr.ch";
-        port = 443;
-        matcher = "";
-        reason = "declared Wazuh/HIDS UI (accepted)";
-      }
-      {
         template_id = "vaultwarden-panel";
         host = "vaultwarden.home.shdr.ch";
         port = 443;
@@ -500,13 +493,6 @@ let
         port = 443;
         matcher = "";
         reason = "declared Speaches OpenAPI (accepted)";
-      }
-      {
-        template_id = "openapi";
-        host = "wazuh.home.shdr.ch";
-        port = 443;
-        matcher = "";
-        reason = "declared Wazuh OpenAPI (accepted)";
       }
       {
         template_id = "shellscripts";

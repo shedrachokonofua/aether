@@ -635,6 +635,29 @@
           - /docker-entrypoint-initdb.d/20-otel-schema.sql
       tags: [clickhouse, clickhouse-otel]
 
+    # Host SSH/sudo events and per-host log heartbeat, filled by materialized
+    # views on otel.otel_logs (so this must follow the telemetry schema).
+    - name: Copy and label host auth events schema
+      ansible.builtin.copy:
+        src: ./clickhouse/21-host-auth-events.sql
+        dest: /home/aether/clickhouse/init/21-host-auth-events.sql
+        mode: "0644"
+        setype: container_file_t
+      become: true
+      tags: [clickhouse, clickhouse-otel, host-auth-events]
+
+    - name: Reconcile host auth events schema
+      containers.podman.podman_container_exec:
+        name: clickhouse
+        argv:
+          - clickhouse-client
+          - --user
+          - "{{ clickhouse_admin_user }}"
+          - --multiquery
+          - --queries-file
+          - /docker-entrypoint-initdb.d/21-host-auth-events.sql
+      tags: [clickhouse, clickhouse-otel, host-auth-events]
+
     # Init scripts run only on an empty ClickHouse volume. Reapply this
     # idempotent DDL after readiness so existing monitoring-stack deployments
     # gain the VyOS observation schema too.

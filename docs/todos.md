@@ -18,8 +18,8 @@
   - [x] Retire Janus and move Holmes/Orion to ClickHouse; Goldilocks uses VPA checkpoints (`holmesgpt.tf`, `orion.tf`, `goldilocks.tf`)
   - [ ] OTLP ingest bearer-token authn + direct receiver TLS (drop Caddy from ingest path; AdGuard rewrite, vcluster netpol, producers-first incl. vcluster + agent self-telemetry)
   - [ ] VyOS OTel producer -> https://otel.home.shdr.ch
-  - [ ] Decommission Fleet only after compensating-control proof
-    - [ ] Audit Fleet-enrolled hosts against Wazuh agent coverage; deploy Wazuh to every gap before removing osquery
+  - [ ] Decide Fleet's future: Wazuh was removed 2026-11 (never had agents), so it is no longer the compensating control. Host detection is the journald `host-*` rules ([Monitoring](monitoring.md#host-authentication-detection)); Fleet stays as a lookup tool unless it goes unused
+    - [ ] Verify Fleet enrollment per host (no read-only Fleet token exists yet)
     - [ ] Disable/remove osquery agents, Fleet pod/volumes, route, secret, Grafana references, and stale docs
 - [ ] Finish Proxmox VE 8→9 upgrade — oracle (last node on 8.3; rest on 9.1; the mixed-version cluster is the RCA for the pmxcfs RRD-update-error storm + blocked HA-groups→rules migration) ([runbook](exploration/oracle-pve9-upgrade.md))
   - [ ] Evacuate oracle guests first — it hosts router/DNS/ingress/identity; clone-and-cutover the router to neo to preserve the control path, live-migrate remaining VMs, offline-migrate CTs
@@ -63,7 +63,7 @@
   - [ ] Phase 2: target compiler, writers into ClickHouse, Grafana coverage/diff/finding panels and stale/failed alerts
   - [ ] Phase 3: calibrate rates on controlled, server, IoT, Gigahub, home, AWS, and GCP targets
   - [ ] Phase 4: enable six-hour discovery, daily critical/cloud, weekly known-host, and monthly blind-estate coverage progressively
-  - [ ] Phase 5: correlate scanner findings with the P1-delivered Wazuh coverage and GCP OS Config; do not make Fleet retirement wait on scanner rollout
+  - [ ] Phase 5: correlate scanner findings with host auth events and GCP OS Config; do not make Fleet retirement wait on scanner rollout
 - [x] Finish telemetry historical backfills (`scripts/telemetry-migration`), then remove Prometheus and Loki dual-write copies (done 2026-10-30; their data volumes are retained on monitoring-stack).
   - The former GreptimeDB / ClickHouse cold-tier plan is superseded by the ClickStack migration. Current TTLs are logs 120d and metrics/traces 30d on the 2 TiB telemetry disk; no active SeaweedFS cold tier is declared. Retained archive buckets are not active query stores (see [Monitoring](monitoring.md)).
 - [ ] Remove east-west NAT masquerade — real source identity on mgmt net ([exploration](exploration/east-west-nat-removal.md))

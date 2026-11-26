@@ -129,8 +129,8 @@ VMs seeded by `tofu/home/modules/nixos_cloud_config` (`ids-stack`,
 expired one. cloud-init rewrites the seed certificate whenever the VM's
 cloud-init instance-id changes, so such a boot can install an already-expired
 certificate. Without a valid certificate, vault-agent cannot authenticate and
-`/run/secrets` (tmpfs) stays empty after a reboot; on `ids-stack` that stops
-Wazuh. Reissue with the per-host target:
+`/run/secrets` (tmpfs) stays empty after a reboot; on `ids-stack` that leaves
+the osquery enroll secret unrendered. Reissue with the per-host target:
 
 ```bash
 task configure:ids-stack-cert

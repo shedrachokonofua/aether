@@ -88,12 +88,6 @@ locals {
       exposure    = "internal"
       criticality = "normal"
     }
-    "hids.home.shdr.ch" = {
-      path        = ""
-      namespace   = "ids-stack"
-      exposure    = "internal"
-      criticality = "normal"
-    }
     "kvm.home.shdr.ch" = {
       path        = ""
       namespace   = "proxmox"
@@ -189,12 +183,6 @@ locals {
       namespace   = "ups"
       exposure    = "internal"
       criticality = "normal"
-    }
-    "wazuh.home.shdr.ch" = {
-      path        = ""
-      namespace   = "ids-stack"
-      exposure    = "internal"
-      criticality = "high"
     }
     "z.ha.home.shdr.ch" = {
       path        = ""
