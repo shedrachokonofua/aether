@@ -363,7 +363,11 @@ locals {
   # so an agent reads the GitLab REST API as daimyo_<org>_<agent> instead of
   # a static token in OpenBao (Topaz's `gitlab` grant). See daimyo
   # docs/ops/upgrades.md "GitLab API grants".
-  daimyo_server_tag = "sha256:913e4275d59e9f7f6dd9efeb35a45e964816ecfc71fcb180899d3e6dcd93c8da"
+  # 20839f13 (main pipeline 18243, every job green). Server and the Org CRD
+  # (daimyo_org_crd first), no migration: `Org.spec.git.author` sets
+  # GIT_AUTHOR_* and GIT_COMMITTER_* on an orgToken org's task and session
+  # pods, so every commit its agents make records that one author.
+  daimyo_server_tag = "sha256:1090941d196ef716e6a8ca4f4dbddefa6474a3b449300c6fc8255513e7fa8687"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -1799,6 +1803,13 @@ resource "kubectl_manifest" "daimyo_org" {
           externalAgents = {
             allowedHosts = ["deskplane-mcp.deskplane.svc", "litellm.litellm.svc.cluster.local", "meridian.${local.meridian_namespace}.svc.cluster.local"]
           }
+        }
+        # cicada: every commit its agents make records one author (daimyo
+        # sets GIT_AUTHOR_* and GIT_COMMITTER_* from it, overriding whatever
+        # git config a writer writes). Without it writers picked their own,
+        # and on 2026-11-26 one copied the operator's identity from `git log`.
+        cicada = {
+          git = { author = { name = "Cicada", email = "cicada@noreply.shdr.ch" } }
         }
       } : name => extra if name == each.key })...
     )
