@@ -105,9 +105,12 @@ locals {
     # and the frontier integration lens took 82% of frontier calls
     # (so/cicada docs/research/2026-11-21-verification-over-review.md).
     # On balanced, diff kept failing review (Grok answering in prose instead
-    # of the verdict schema, DeepSeek running out the 1 h deadline).
+    # of the verdict schema, DeepSeek running out the 1 h deadline), so
+    # balanced is only the fallback while strong is switched off for quota
+    # (decision 121): on 2026-11-26 strong ran out for ~5 h and every item
+    # reaching review waited the whole window (crucible item 1173).
     lenses = [
-      { name = "diff", model = "moira/strong" },
+      { name = "diff", model = "moira/strong", fallback = "moira/balanced" },
     ]
 
     [gardener]
