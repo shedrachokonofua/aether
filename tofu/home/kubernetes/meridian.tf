@@ -8,9 +8,8 @@
 #
 # It took over from LiteLLM's MCP gateway. A server with its own address is a
 # direct source here, with the credential LiteLLM used; the third-party
-# servers run in the mcp namespace (mcp.tf). Withings is still reached through
-# LiteLLM's per-server route (meridian_litellm_servers), where the `<server>-`
-# prefix LiteLLM adds to a tool's name is dropped.
+# servers run in the mcp namespace (mcp.tf). Withings keeps accounts of its own:
+# Meridian holds one sign-in to it (`login`), kept on meridian-state.
 #
 # pop gives roles to whoever calls it and Deskplane keeps each caller's
 # sessions apart, so each is told the caller by the caller's own issuer.
@@ -36,7 +35,7 @@
 
 locals {
   meridian_namespace = module.namespace["meridian"].name
-  meridian_release   = "4c3e11d5f1261f1a79c8710eef4ee544ed488492"
+  meridian_release   = "9725ea673ed3601bac5803fdb10bea815ee1194f"
   meridian_labels = {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
@@ -172,12 +171,6 @@ locals {
     "get_peer_log",
     "get_system_info",
   ]
-  # Still reached through LiteLLM's per-server route, with the daimyo-orion
-  # key (register_litellm_virtual_keys.yml), so LiteLLM's 1 MiB and 60 s
-  # limits apply to it: Withings signs in through LiteLLM's OAuth client.
-  meridian_litellm_servers = {
-    withings = "Health measurements: sleep, weight, activity, heart."
-  }
   # The read tools LiteLLM's allowlist served from ClickStack, without the
   # `clickstack_` every one of them starts with.
   meridian_clickstack_tools = [
@@ -191,6 +184,10 @@ locals {
   meridian_orion_skills_commit = "39778d5bb16af53e11f3053e77efc026503db13b"
 
   meridian_config = {
+    # Where a person lands after signing a source in, and where the sign-ins
+    # are kept (the meridian-state claim).
+    url    = local.meridian_public_url
+    logins = "/var/lib/meridian/logins.json"
     # Finding a tool by what it is for: LiteLLM's embedding and reranking
     # models, with a key that may use those two and nothing else.
     search = {
@@ -268,6 +265,13 @@ locals {
           about = "Shopping across online stores: find products, carts, checkout."
           mcp   = "https://mcp.shop.com/"
         }
+        # One sign-in to Shedrach's Withings account, made once in a browser
+        # from the link meridian_login gives.
+        withings = {
+          about = "Health measurements: sleep, weight, activity, heart."
+          mcp   = "https://mcp.withings.com/mcp"
+          login = true
+        }
         # Deskplane keeps each caller's sessions apart and pop gives roles to
         # whoever calls it, so each is told the caller by the caller's own
         # issuer: Meridian exchanges the token it was given for one addressed
@@ -310,14 +314,6 @@ locals {
           contains(keys(local.meridian_mcp_only), server) ? { only = local.meridian_mcp_only[server] } : {},
         )
       },
-      {
-        for server, about in local.meridian_litellm_servers : server => {
-          mcp     = "http://litellm.litellm.svc.cluster.local:4000/mcp/${server}"
-          about   = about
-          headers = { "x-litellm-api-key" = "Bearer $LITELLM_MCP_KEY" }
-          tools   = { "${server}-*" = { name = "*" } }
-        }
-      },
     )
     access = {
       "daimyo/orion" = ["*"]
@@ -341,12 +337,19 @@ locals {
   }
 }
 
-# The `orion` agent's LiteLLM key for the MCP gateway's per-server routes
-# (openbao_daimyo.tf). Meridian reaches LiteLLM's servers with the same key
-# and scope until each is a direct source.
-data "vault_kv_secret_v2" "meridian_litellm_mcp" {
-  mount = "kv"
-  name  = "orgs/personal/litellm-mcp"
+# What must outlive the pod: the sign-ins Meridian holds for sources with a
+# `login`. Two pods can mount it, so a new one starts before the old one stops.
+resource "kubernetes_persistent_volume_claim_v1" "meridian_state" {
+  depends_on = [module.namespace["meridian"], kubernetes_storage_class_v1.cephfs]
+  metadata {
+    name      = "meridian-state"
+    namespace = local.meridian_namespace
+  }
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = kubernetes_storage_class_v1.cephfs.metadata[0].name
+    resources { requests = { storage = "1Gi" } }
+  }
 }
 
 # The credentials the configuration names as $NAME.
@@ -361,7 +364,6 @@ resource "kubernetes_secret_v1" "meridian_env" {
 
   data = {
     PHAROS_MCP_TOKEN         = random_password.pharos_mcp_token.result
-    LITELLM_MCP_KEY          = data.vault_kv_secret_v2.meridian_litellm_mcp.data["token"]
     X_BRIDGE_MCP_TOKEN       = random_password.x_bridge_mcp_token.result
     FM_MCP_TOKEN             = random_password.fm_mcp_token.result
     HYPERDX_MCP_TOKEN        = var.secrets["hyperdx.api_key"]
@@ -426,6 +428,7 @@ resource "helm_release" "meridian" {
     }
     imagePullSecrets = [{ name = kubernetes_secret_v1.meridian_registry.metadata[0].name }]
     existingSecret   = kubernetes_secret_v1.meridian_env.metadata[0].name
+    state            = { claim = kubernetes_persistent_volume_claim_v1.meridian_state.metadata[0].name }
     # A changed `config` is taken up by the running pod. A rotated source
     # credential is not: restart the Deployment after rotating one.
     env = {
