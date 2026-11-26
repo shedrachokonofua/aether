@@ -15,7 +15,7 @@
 #                             2/12 on 2026-06-15; 4/24 on PAYG would bill ~$28/mo)
 #
 # Network exposure: security list opens only TCP/22 (key-only bootstrap; tighten to the
-# home WAN once WireGuard is up) and UDP/51820 (direct home<->OCI WireGuard peer). :53 and
+# home WAN once WireGuard is up). There is no UDP/51820 rule: rama dials out to link. :53 and
 # service ports are filtered at the host firewall on the wg interface, NOT here — an OCI
 # security list only sees the outer VCN packet, never the tunneled inner traffic.
 

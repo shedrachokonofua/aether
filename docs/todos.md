@@ -21,7 +21,7 @@
     - [ ] Prerequisites: alert delivery fixed, secrets scrubbed from logs, and a decision on local versus cloud model (logs leave the house on a cloud model)
   - [ ] Estate scanner: every daily run since 2026-11-05 is `cancelled` with `kestra-flow-failed-lock-held` (117 runs succeeded before); find and clear the stale lock, and make the flow release it on failure
   - [ ] Close the cloud-VPS-to-home path
-    - [ ] Remove the `caddy.home.shdr.ch` vhost and bind the Caddy admin API to localhost (`home_gateway_stack/caddy/Caddyfile.j2:10-12,62-68`); verify live whether it answers today
+    - [ ] Roll out the Caddy admin API fix (code on main 2026-11-26: `admin localhost:2019`, `caddy.home.shdr.ch` vhost and probe removed); needs `task configure:caddy` and `tofu apply`
     - [ ] Narrow VyOS `CLOUD-to-TRUSTED` rule 30 (vigilant) from `443,9443` to `9443`
     - [ ] VyOS accepts `10.1/16`, `10.2/16` and `10.3/16` from the single link WireGuard peer, so link can source as vigilant or rama; split peers or filter by source
     - [ ] Close public SSH on link (`tofu/aws/public-gateway.tf:22-28`) and rama (`tofu/oci/main.tf:95-103`); manage both over WireGuard
@@ -29,7 +29,7 @@
   - [ ] Kubernetes east-west: baseline has `enableDefaultDeny` false and 71 of 99 namespaces have no policy
     - [ ] Default-deny for the public apps first: jellyfin, nextcloud, openwebui
     - [ ] Then vaultwarden, gitlab-runner, kestra, kube-system
-  - [ ] Fix `tetragon-escape-signal`: it filters on `tetragon-host-runtime-socket`, the policy is `tetragon-host-runtime-socket-access` (`infra-security.yml`, `tetragon_policies.tf:118`)
+  - [ ] Apply the `tetragon-escape-signal` policy-name fix (code on main 2026-11-26; needs `tofu apply`), then watch its volume before promoting it to critical
   - [ ] Secrets in logs: scrub and rotate (rotation needs explicit approval)
     - [ ] `X-Clickhouse-Key` request header stored by home Caddy access logs
     - [ ] Kestra webhook key in Kestra access-log paths (readable with the Grafana Viewer token)
@@ -54,7 +54,6 @@
   - [ ] link forwards to home Caddy over plain HTTP inside WireGuard, and VPS journals are pulled over plain HTTP: root on a VPS reads Keycloak traffic and can alter its own evidence
   - [ ] Kubernetes admission: 12 namespaces at `privileged` (incl. `gitlab-runner`, with 3 Tetragon untrusted-activity alerts firing); Kyverno has no pod-security policies, 436 PolicyReport failures and 19 admission-controller restarts; Trivy has 85 reports for 188 workloads
   - [ ] Sensor gaps: pppoe0 and eth0/MGMT are not mirrored to Zeek; `zeek.conn` keeps 14 days; no rule reads CrowdSec (about 15k active bans, 3,180 local alerts in 7 days)
-  - [ ] Docs that disagree with code: `docs/networking.md:63-64` (IoT/Guest intra-VLAN is dropped, not allowed); `tofu/oci/main.tf:17-18` header (no udp/51820 rule exists)
   - [ ] Perimeter scanner `seraph`: split the A1 allowance (rama 1 OCPU / 4 GB, seraph 1 OCPU / 8 GB, own VCN, no WireGuard); do after the VPS-to-home path is closed
 - [ ] Cloud-audit (vigil) rollout — deployed, soaking ([PLAN](https://gitlab.home.shdr.ch/so/vigil/-/blob/main/PLAN.md))
   - [x] P0 identities/trusts (federated-jwt, AWS/GCP/OCI/TS/Bao legs, negatives verified)

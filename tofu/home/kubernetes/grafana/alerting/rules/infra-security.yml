@@ -753,7 +753,7 @@ groups:
                   FROM otel.otel_metrics_sum
                   WHERE MetricName = 'tetragon_policy_events_total'
                     AND TimeUnix > now() - INTERVAL 15 MINUTE
-                    AND Attributes['policy'] IN ('tetragon-host-runtime-socket', 'tetragon-kernel-module-load', 'tetragon-unprivileged-userns-create')
+                    AND Attributes['policy'] IN ('tetragon-host-runtime-socket-access', 'tetragon-kernel-module-load', 'tetragon-unprivileged-userns-create')
                   GROUP BY Attributes, ResourceAttributes['service.instance.id'], ServiceName, StartTimeUnix
                 )
                 GROUP BY policy, namespace, pod

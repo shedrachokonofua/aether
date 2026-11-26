@@ -40,12 +40,6 @@ locals {
       exposure    = "internal"
       criticality = "normal"
     }
-    "caddy.home.shdr.ch" = {
-      path        = "/metrics"
-      namespace   = "home-gateway-stack"
-      exposure    = "internal"
-      criticality = "normal"
-    }
     "clickhouse.home.shdr.ch" = {
       path        = "/ping"
       namespace   = "monitoring-stack"

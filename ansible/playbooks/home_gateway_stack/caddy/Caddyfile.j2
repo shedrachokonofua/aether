@@ -7,9 +7,9 @@
     per_host
   }
   acme_dns cloudflare {{ secrets.cloudflare_dns_api_key }}
-  admin :2019 {
-    origins caddy.home.shdr.ch
-  }
+  # Loopback only: the admin API can rewrite the whole config and has no
+  # authentication. The local OTel agent scrapes /metrics from it.
+  admin localhost:2019
   # Bind all routes to LAN IP only by default.
   # Studio routes (GitLab etc.) explicitly bind to both LAN + Tailscale
   # so shared co-founders can reach them, while everything else stays LAN-only.
@@ -56,14 +56,6 @@ home.shdr.ch {
     header_up X-Real-IP {http.request.remote}
     header_up X-Forwarded-For {http.request.remote}
     header_up X-Forwarded-Proto https
-  }
-}
-
-caddy.home.shdr.ch {
-  import home_acme_dns
-  import access_logs
-  reverse_proxy localhost:2019 {
-    header_up Host localhost
   }
 }
 
