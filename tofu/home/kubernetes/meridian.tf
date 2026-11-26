@@ -8,9 +8,9 @@
 #
 # It took over from LiteLLM's MCP gateway. A server with its own address is a
 # direct source here, with the credential LiteLLM used; the third-party
-# servers run in the mcp namespace (mcp.tf). Two are still reached through
-# LiteLLM's per-server routes (meridian_litellm_servers), where the
-# `<server>-` prefix LiteLLM adds to a tool's name is dropped.
+# servers run in the mcp namespace (mcp.tf). Withings is still reached through
+# LiteLLM's per-server route (meridian_litellm_servers), where the `<server>-`
+# prefix LiteLLM adds to a tool's name is dropped.
 #
 # pop gives roles to whoever calls it and Deskplane keeps each caller's
 # sessions apart, so each is told the caller by the caller's own issuer.
@@ -36,7 +36,7 @@
 
 locals {
   meridian_namespace = module.namespace["meridian"].name
-  meridian_release   = "fdb73fe89eead529d1fe7396523ad7ed1ebae536"
+  meridian_release   = "4c3e11d5f1261f1a79c8710eef4ee544ed488492"
   meridian_labels = {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
@@ -137,14 +137,46 @@ locals {
       "export_listening_data",
     ]
   }
-  # Servers still reached through LiteLLM's per-server routes, with the
-  # daimyo-orion key (register_litellm_virtual_keys.yml), so LiteLLM's tool
-  # allowlists and its 1 MiB and 60 s limits apply to them. qbittorrent
-  # speaks only SSE, which Meridian does not; Withings signs in through
-  # LiteLLM's OAuth client.
+  # Not served from qBittorrent: shutdown_app, set_app_preferences (autorun
+  # programs, WebUI sign-in, save paths) and install_search_plugin (it runs
+  # downloaded Python inside the qBittorrent pod).
+  meridian_qbittorrent_tools = [
+    "list_torrents",
+    "manage_torrents",
+    "add_torrent",
+    "delete_torrent",
+    "get_torrent_files",
+    "inspect_torrent",
+    "get_categories",
+    "wait_for_torrent_status",
+    "cleanup_completed",
+    "mass_rename",
+    "find_duplicates",
+    "add_trackers",
+    "edit_tracker",
+    "remove_trackers",
+    "rename_folder",
+    "set_file_priority",
+    "search_torrents",
+    "uninstall_search_plugin",
+    "enable_search_plugin",
+    "update_search_plugins",
+    "get_search_plugins",
+    "ban_peers",
+    "add_rss_feed",
+    "get_rss_feeds",
+    "set_rss_rule",
+    "get_rss_rules",
+    "move_rss_item",
+    "get_main_log",
+    "get_peer_log",
+    "get_system_info",
+  ]
+  # Still reached through LiteLLM's per-server route, with the daimyo-orion
+  # key (register_litellm_virtual_keys.yml), so LiteLLM's 1 MiB and 60 s
+  # limits apply to it: Withings signs in through LiteLLM's OAuth client.
   meridian_litellm_servers = {
-    qbittorrent = "Torrents on the home server."
-    withings    = "Health measurements: sleep, weight, activity, heart."
+    withings = "Health measurements: sleep, weight, activity, heart."
   }
   # The read tools LiteLLM's allowlist served from ClickStack, without the
   # `clickstack_` every one of them starts with.
@@ -258,6 +290,13 @@ locals {
           graphql = "https://api.hardcover.app/v1/graphql"
           headers = { Authorization = "Bearer $HARDCOVER_API_KEY" }
         }
+        # qbittorrent-mcp-rs speaks only SSE, and asks for a bearer token.
+        qbittorrent = {
+          about   = "Torrents on the home server."
+          mcp     = "http://qbittorrent.${local.mcp_namespace}.svc.cluster.local:${local.mcp_port["qbittorrent"]}/sse"
+          headers = { Authorization = "Bearer $QBITTORRENT_MCP_TOKEN" }
+          only    = local.meridian_qbittorrent_tools
+        }
         orion-skills = {
           skills = "https://gitlab.home.shdr.ch/so/orion.git#${local.meridian_orion_skills_commit}"
         }
@@ -328,6 +367,7 @@ resource "kubernetes_secret_v1" "meridian_env" {
     HYPERDX_MCP_TOKEN        = var.secrets["hyperdx.api_key"]
     SOURCEGULL_MCP_TOKEN     = data.vault_kv_secret_v2.sourcegull_mcp.data["token"]
     HARDCOVER_API_KEY        = var.secrets["hardcover.api_key"]
+    QBITTORRENT_MCP_TOKEN    = random_password.litellm_qbit_mcp.result
     MERIDIAN_EXCHANGE_SECRET = var.meridian_exchange_client_secret
     MERIDIAN_SEARCH_KEY      = var.secrets["litellm.virtual_keys.meridian"]
   }

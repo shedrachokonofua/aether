@@ -47,9 +47,8 @@ locals {
   )
 
   # The servers LiteLLM still routes to (litellm_config.yaml.tftpl
-  # mcp_servers): finviz, which Foundry's key may use, and qbittorrent, whose
-  # SSE Meridian does not speak.
-  mcp_litellm_routes = ["finviz", "qbittorrent"]
+  # mcp_servers): finviz, which Foundry's key may use.
+  mcp_litellm_routes = ["finviz"]
 
   # The upstream credential each server is given, by server name.
   mcp_secrets = merge(
