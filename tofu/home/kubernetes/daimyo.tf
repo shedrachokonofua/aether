@@ -352,7 +352,11 @@ locals {
   # between the audiences `Org.spec.tokenExchange` names and no others. See
   # daimyo docs/ops/upgrades.md "Token exchange". The commit after it in this
   # image changes the molecule runner only.
-  daimyo_server_tag = "sha256:813ad0be0d46c8aedc9a1aac1591d991ba3e6e3a292cf6b8621eabe43aad03da"
+  # 312d3ce8 (main pipeline 18058; rust-test-engine's tracing test passed on
+  # retry). Server and the SandboxClass CRD's description, no migration: an
+  # `imageRepository` ending in `/` admits every repository under it, so one
+  # class serves a whole group (Cicada decision 123).
+  daimyo_server_tag = "sha256:8dd6584302bbc259f990464d4faa6ae0c69a3e244bb71bcf5f3bd8638dbe3fed"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -1877,26 +1881,16 @@ resource "kubectl_manifest" "daimyo_ivy_model_allowlist" {
   })
 }
 
-# Cicada names its agents `writer`, `planner` and `lens-<name>` per daimyo
-# project, so each repository it runs needs its own project (Cicada's
-# default: the repository path's last segment). so/cicada uses `cicada`
-# above. The org's policies and model allowlist are project-independent.
-resource "kubectl_manifest" "daimyo_cicada_repo_project" {
-  for_each   = local.daimyo_cicada_repos
-  depends_on = [kubectl_manifest.daimyo_org]
+# Cicada creates the daimyo project of each repository it runs when it first
+# loads it (Cicada decision 123). The projects aether used to create for
+# molecule, turmeric, buyerfact, beacon and helios hold live agents, so they
+# leave tofu's state and stay in the cluster.
+removed {
+  from = kubectl_manifest.daimyo_cicada_repo_project
 
-  yaml_body = yamlencode({
-    apiVersion = "daimyo.shdr.ch/v1alpha1"
-    kind       = "Project"
-    metadata = {
-      name      = each.key
-      namespace = "org-cicada"
-      labels    = local.daimyo_cr_labels
-    }
-    spec = {
-      description = "Cicada agents for ${each.value.repo}."
-    }
-  })
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "kubectl_manifest" "daimyo_echo_bundle" {
@@ -2188,81 +2182,27 @@ resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
 }
 
 locals {
-  # Repositories whose daimyo project aether created, keyed by project (the
-  # repository path's last segment). Cicada creates the project of any other
-  # repository itself when it first loads it (decision 123), so new
-  # repositories are not added here. Repositories outside group `so` are
-  # shared with `so` as Maintainer, so its cicada-lander and cicada-writer
-  # group tokens reach them. `resources` sizes the repository's own class
-  # until its workflow names a shared one.
-  daimyo_cicada_repos = {
-    # so/molecule: wasmtime and the component recipes are heavy builds.
-    # workspace is daimyo's 20Gi maximum. A sandbox reserves `requests` and
-    # bursts to the limits: measured 2026-10-29 with `kubectl top`, a building
-    # sandbox used ~1.5 CPU and ~0.5Gi and sat near zero between ci_exec
-    # calls, while reserving its whole 3 CPU / 6-8Gi blocked CI runner pods on
-    # the amd64 nodes (60-90% of CPU requested). Limits stay at 3 CPU: the
-    # cicada-tasks quota caps limits.cpu at 32.
-    molecule = {
-      repo      = "so/molecule"
-      resources = { cpu = "3", memory = "8Gi", workspace = "20Gi", requests = { cpu = "1", memory = "3Gi" } }
+  # Shared by every repository of a group (Cicada decision 123): an
+  # `imageRepository` ending in `/` admits each repository's own per-commit
+  # image under it. A building sandbox measured ~1.5 CPU and ~0.5Gi and near
+  # zero between ci_exec calls (molecule, 2026-10-29), so `requests` is what
+  # is reserved and the limits are what a build may burst to; limits stay at
+  # 3 CPU because the cicada-tasks quota caps limits.cpu at 32, and the
+  # workspace is daimyo's 20Gi maximum. A repository outside group `so` is
+  # shared with `so` as Maintainer so Cicada's group tokens reach it.
+  daimyo_cicada_sandbox_classes = {
+    # Every seven30 repository: bun apps, Playwright Chromium for e2e.
+    seven30 = {
+      image_repository = "registry.gitlab.home.shdr.ch/seven30/"
+      resources        = { cpu = "3", memory = "4Gi", workspace = "20Gi", requests = { cpu = "1", memory = "1Gi" } }
     }
-    # so/turmeric: cargo, Go, bun, Chromium, NATS and ClickHouse in one pod.
-    turmeric = {
-      repo      = "so/turmeric"
-      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
-    }
-    # seven30/buyerfact: SvelteKit on bun, with Playwright Chromium for e2e.
-    buyerfact = {
-      repo      = "seven30/buyerfact"
-      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
-    }
-    # seven30/beacon (goal 44, created by the Seven30 co-founder
-    # 2026-11-22): bun. Sized like buyerfact until it is measured. The
-    # project is shared with group `so` as Maintainer and has the Cicada
-    # project hook (14), as cicada.tf describes.
-    beacon = {
-      repo      = "seven30/beacon"
-      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
-    }
-    # so/helios (2026-11-24): bun, Postgres 17 and Playwright Chromium in one
-    # pod. Sized like buyerfact until it is measured; Cicada project hook 15.
-    helios = {
-      repo      = "so/helios"
-      resources = { cpu = "3", memory = "6Gi", workspace = "20Gi", requests = { cpu = "1", memory = "2Gi" } }
+    # Every so repository, light or heavy (cicada's cargo with Postgres and
+    # NATS, molecule's wasmtime): 1Gi reserved, bursting to 8Gi.
+    so = {
+      image_repository = "registry.gitlab.home.shdr.ch/so/"
+      resources        = { cpu = "3", memory = "8Gi", workspace = "20Gi", requests = { cpu = "1", memory = "1Gi" } }
     }
   }
-  # so/cicada itself: cargo, bun, Postgres 17 and NATS JetStream in one pod;
-  # its goal acceptance runs `task lint`, `task test` and `bun test ui` here.
-  daimyo_cicada_self_sandbox = {
-    cicada = {
-      repo      = "so/cicada"
-      resources = { cpu = "3", memory = "8Gi", workspace = "20Gi", requests = { cpu = "1", memory = "3Gi" } }
-    }
-  }
-  # The shared classes, plus each repository's own until its workflow moves.
-  # A building sandbox measured ~1.5 CPU and ~0.5Gi and near zero between
-  # ci_exec calls (molecule, 2026-10-29), so `requests` is what is reserved
-  # and the limits are what a build may burst to.
-  daimyo_cicada_sandbox_classes = merge(
-    {
-      for name, r in merge(local.daimyo_cicada_repos, local.daimyo_cicada_self_sandbox) :
-      name => { image_repository = "registry.gitlab.home.shdr.ch/${r.repo}/ci", resources = r.resources }
-    },
-    {
-      # Every seven30 repository: bun apps, Playwright Chromium for e2e.
-      seven30 = {
-        image_repository = "registry.gitlab.home.shdr.ch/seven30/"
-        resources        = { cpu = "3", memory = "4Gi", workspace = "20Gi", requests = { cpu = "1", memory = "1Gi" } }
-      }
-      # Every so repository, light or heavy (cicada's cargo with Postgres and
-      # NATS, molecule's wasmtime): 1Gi reserved, bursting to 8Gi.
-      so = {
-        image_repository = "registry.gitlab.home.shdr.ch/so/"
-        resources        = { cpu = "3", memory = "8Gi", workspace = "20Gi", requests = { cpu = "1", memory = "1Gi" } }
-      }
-    },
-  )
 }
 
 # Org `personal`: a user decides the approvals he is an assignee of. The

@@ -149,7 +149,7 @@ locals {
 # and note events), which Cicada adds itself when it first loads a
 # repository (decision 123); GitLab sends it as X-Gitlab-Token. Repositories
 # outside `so` are shared with group `so` as Maintainer so both group tokens
-# reach them (seven30/buyerfact, beacon, crucible).
+# reach them.
 data "vault_kv_secret_v2" "cicada_gitlab" {
   mount = "kv"
   name  = "cicada/gitlab"
