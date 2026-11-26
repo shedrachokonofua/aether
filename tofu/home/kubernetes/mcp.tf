@@ -8,7 +8,8 @@
 # other pods out.
 #
 # None of them asks its caller to sign in (qbittorrent takes a bearer token),
-# so the namespace admits only Meridian and LiteLLM (mcp_cilium_network). A
+# so the namespace admits only Meridian, and LiteLLM to the servers it still
+# routes to (mcp_cilium_network). A
 # server holds its own upstream credential and nothing else: one Secret each,
 # no Kubernetes API token.
 #
@@ -44,6 +45,11 @@ locals {
     },
     local.mcp_google_maps ? { google-maps = 8004 } : {},
   )
+
+  # The servers LiteLLM still routes to (litellm_config.yaml.tftpl
+  # mcp_servers): the ones OpenWebUI's and Foundry's keys may use, and
+  # qbittorrent, whose SSE Meridian does not speak.
+  mcp_litellm_routes = ["comfyui", "espn", "finviz", "google-maps", "jellyfin", "qbittorrent", "time", "tmdb"]
 
   # The upstream credential each server is given, by server name.
   mcp_secrets = merge(
@@ -262,15 +268,20 @@ resource "kubernetes_manifest" "mcp_cilium_network" {
     }
     spec = {
       endpointSelector = {}
-      ingress = [{
-        fromEndpoints = [
-          { matchLabels = { "io.kubernetes.pod.namespace" = local.meridian_namespace, "app.kubernetes.io/name" = "meridian" } },
-          { matchLabels = { "io.kubernetes.pod.namespace" = local.litellm_ns, "app" = "litellm" } },
-        ]
-        toPorts = [{
-          ports = [for port in distinct(values(local.mcp_port)) : { port = tostring(port), protocol = "TCP" }]
-        }]
-      }]
+      ingress = [
+        {
+          fromEndpoints = [{ matchLabels = { "io.kubernetes.pod.namespace" = local.meridian_namespace, "app.kubernetes.io/name" = "meridian" } }]
+          toPorts = [{
+            ports = [for port in distinct(values(local.mcp_port)) : { port = tostring(port), protocol = "TCP" }]
+          }]
+        },
+        {
+          fromEndpoints = [{ matchLabels = { "io.kubernetes.pod.namespace" = local.litellm_ns, "app" = "litellm" } }]
+          toPorts = [{
+            ports = [for server, port in local.mcp_port : { port = tostring(port), protocol = "TCP" } if contains(local.mcp_litellm_routes, server)]
+          }]
+        },
+      ]
     }
   }
 }
