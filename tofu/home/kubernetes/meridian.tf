@@ -6,14 +6,11 @@
 # may use. Its whole configuration is the `config` value below: issuers,
 # sources, endpoints, access. Changing who may use what is a change to this file.
 #
-# It is taking over from LiteLLM's MCP gateway, one server at a time. A server
-# with its own address is a direct source here, with the credential LiteLLM
-# used. The servers that are still sidecars in LiteLLM's pod
-# (meridian_litellm_servers) are reached through LiteLLM's per-server routes
-# until their containers move, with the key the `orion` agent's grants use, so
-# LiteLLM's tool allowlists and its 1 MiB and 60 s limits still apply to those.
-# A tool's name does not change when its server moves: the `<server>-` prefix
-# LiteLLM adds is dropped here.
+# It took over from LiteLLM's MCP gateway. A server with its own address is a
+# direct source here, with the credential LiteLLM used; the third-party
+# servers run in the mcp namespace (mcp.tf). Two are still reached through
+# LiteLLM's per-server routes (meridian_litellm_servers), where the
+# `<server>-` prefix LiteLLM adds to a tool's name is dropped.
 #
 # pop gives roles to whoever calls it and Deskplane keeps each caller's
 # sessions apart, so each is told the caller by the caller's own issuer.
@@ -51,15 +48,14 @@ locals {
   # In-cluster address consumers use: `${local.meridian_url}/mcp`.
   meridian_url = "http://meridian.${local.meridian_namespace}.svc.cluster.local:8080"
 
-  # LiteLLM MCP servers the daimyo-orion key may reach
-  # (register_litellm_virtual_keys.yml, litellm_daimyo_orion_mcp_servers).
-  # Each with what it is for, which a caller is told when it connects.
-  meridian_litellm_servers = {
+  # The servers in the mcp namespace (mcp.tf), each with what it is for,
+  # which a caller is told when it connects.
+  meridian_mcp_servers = {
     annas         = "Find and download books and scholarly articles."
     comfyui       = "Generate and edit images."
     espn          = "Sports scores, schedules, standings and news."
     finviz        = "Stock screening, fundamentals and market news."
-    google_maps   = "Places, directions, travel times and weather."
+    google-maps   = "Places, directions, travel times and weather."
     homeassistant = "The house: lights, climate, devices, automations and their state."
     jellyfin      = "The home media server: films, shows and music to find and play."
     karakeep      = "Saved bookmarks and reading lists."
@@ -67,12 +63,88 @@ locals {
     openalex      = "Scholarly works, authors and citations."
     openfda       = "Drug labels, adverse events and recalls."
     pubmed        = "Biomedical literature."
-    qbittorrent   = "Torrents on the home server."
     ticketmaster  = "Live events, venues and tickets."
     time          = "The current time, and conversion between time zones."
     tmdb          = "Films and shows: details, cast, trending."
-    withings      = "Health measurements: sleep, weight, activity, heart."
     yourspotify   = "Spotify listening history and statistics."
+  }
+  # Of such a server's tools, the ones served, where that is not all of them.
+  meridian_mcp_only = {
+    # Generation, template, workflow and job tools. Not served: install,
+    # update and version switching, model downloads, launch/stop/restart and
+    # logs (they act on the server, which has no ComfyUI), partner, auth and
+    # billing (Comfy credits), and upload_file (it uploads any file the
+    # server can read into ComfyUI's input folder).
+    comfyui = [
+      "server_info",
+      "system_stats",
+      "free_memory",
+      "generate_image",
+      "run_template",
+      "run_workflow",
+      "job",
+      "fetch_outputs",
+      "search_templates",
+      "get_template",
+      "fetch_template",
+      "list_workflow_slots",
+      "list_workflow_notes",
+      "set_workflow_slot",
+      "vary_workflow",
+      "validate_workflow",
+      "nodes",
+      "search_models",
+    ]
+    # DataCanvas is off, but the server still lists the openfda_dataframe_*
+    # tools, which only answer canvas_disabled.
+    openfda = [
+      "openfda_drug_profile",
+      "openfda_search_adverse_events",
+      "openfda_search_animal_events",
+      "openfda_search_drug_shortages",
+      "openfda_search_tobacco_reports",
+      "openfda_search_recalls",
+      "openfda_count_values",
+      "openfda_describe_fields",
+      "openfda_get_drug_label",
+      "openfda_search_drug_approvals",
+      "openfda_search_device_clearances",
+      "openfda_lookup_ndc",
+    ]
+    # Search and download, for books and for articles.
+    annas = [
+      "book_search",
+      "article_search",
+      "book_download",
+      "article_download",
+    ]
+    # The read tools. Not served: the account writes (update_user_settings,
+    # rename_account, generate_public_share_link, revoke_public_access) and
+    # analyze_affinity, which needs a signed-in web session.
+    yourspotify = [
+      "get_track_stats",
+      "get_top_tracks",
+      "get_artist_stats",
+      "get_top_artists",
+      "search_listening_history",
+      "create_custom_wrapped",
+      "get_listening_timeline",
+      "get_artist_rank",
+      "get_track_rank",
+      "analyze_listening_patterns",
+      "get_discovery_insights",
+      "compare_listening_periods",
+      "export_listening_data",
+    ]
+  }
+  # Servers still reached through LiteLLM's per-server routes, with the
+  # daimyo-orion key (register_litellm_virtual_keys.yml), so LiteLLM's tool
+  # allowlists and its 1 MiB and 60 s limits apply to them. qbittorrent
+  # speaks only SSE, which Meridian does not; Withings signs in through
+  # LiteLLM's OAuth client.
+  meridian_litellm_servers = {
+    qbittorrent = "Torrents on the home server."
+    withings    = "Health measurements: sleep, weight, activity, heart."
   }
   # The read tools LiteLLM's allowlist served from ClickStack, without the
   # `clickstack_` every one of them starts with.
@@ -191,8 +263,16 @@ locals {
         }
       },
       {
-        # A source name has no underscore (a tool is <source>_<tool>).
-        for server, about in local.meridian_litellm_servers : replace(server, "_", "-") => {
+        for server, about in local.meridian_mcp_servers : server => merge(
+          {
+            mcp   = "http://${server}.${local.mcp_namespace}.svc.cluster.local:${local.mcp_port[server]}/mcp"
+            about = about
+          },
+          contains(keys(local.meridian_mcp_only), server) ? { only = local.meridian_mcp_only[server] } : {},
+        )
+      },
+      {
+        for server, about in local.meridian_litellm_servers : server => {
           mcp     = "http://litellm.litellm.svc.cluster.local:4000/mcp/${server}"
           about   = about
           headers = { "x-litellm-api-key" = "Bearer $LITELLM_MCP_KEY" }
