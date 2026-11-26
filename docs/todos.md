@@ -2,6 +2,60 @@
 
 ## P1
 
+- [ ] Security posture — findings of the 2026-11-26 audit (read-only; evidence is live queries and code as of that date)
+  - [ ] Alerts must reach a person
+    - [ ] Fix `apprise-digest` Matrix delivery (Grafana logged "Notify for alerts failed", 99 alerts, Matrix error 413)
+    - [ ] Promote the few page-worthy security rules to `severity: critical` (all 34 `domain=security` rules were `warning`): Tetragon Escape Signal, IDS Suricata Severity 1, AWS root login, KMS unseal-key tamper
+    - [ ] Confirm who receives ntfy `security`, `alerts` and `system`
+    - [ ] Clear the long-firing queue: Assay TD workflow/reconciliation stale (since 10-31), Probe Failed Public, Probe Failed Internal x4, Suricata Capture Drops, Talos workload disk below 20%
+  - [ ] Revive vigil: pod in `ImagePullBackOff` since 2026-11-04 because the digest pinned at `tofu/home/kubernetes/cloud_audit.tf:13` is gone from the GitLab registry
+    - [ ] Rebuild the image, pin the new digest, and protect the deployed tag from registry cleanup
+    - [ ] Check how much of the 22-day gap each collector backfills from its cursor
+    - [ ] Event rules use `noDataState: OK`, so a dead feed is silent; the feed-absent rules must page
+  - [ ] Merge Argos and Inquest into one security triage agent (decided 2026-11-26)
+    - [ ] Read the Inquest repo: how much of the Holmes step (0 replicas, `holmesgpt.tf:90`) is reusable
+    - [ ] Keep Inquest's intake (webhook, fingerprint dedupe, GitLab issue lifecycle); replace the Holmes step with the agent
+    - [ ] Retire Argos as a service (ran 2026-07-11 to 07-14 only; `argos_service_enabled: false`; all five `argos-*` rules paused): remove the unit, ClickHouse user, rules and dashboard panels. If beacon detection is still wanted, one scheduled SQL query over `zeek.conn` that the agent reads
+    - [ ] Agent runs on a schedule and on security alerts (Kestra); reads firing alerts plus `aether.host_auth_events`, Suricata/Zeek summaries and `network.*` identities; writes one digest and opens an issue for anything it judges real
+    - [ ] Constraints: read-only ClickHouse identity; cannot silence alerts, close issues or run commands (it reads attacker-controlled log text); paging stays with deterministic rules; its own "agent has not run" rule pages
+    - [ ] Prerequisites: alert delivery fixed, secrets scrubbed from logs, and a decision on local versus cloud model (logs leave the house on a cloud model)
+  - [ ] Estate scanner: every daily run since 2026-11-05 is `cancelled` with `kestra-flow-failed-lock-held` (117 runs succeeded before); find and clear the stale lock, and make the flow release it on failure
+  - [ ] Close the cloud-VPS-to-home path
+    - [ ] Remove the `caddy.home.shdr.ch` vhost and bind the Caddy admin API to localhost (`home_gateway_stack/caddy/Caddyfile.j2:10-12,62-68`); verify live whether it answers today
+    - [ ] Narrow VyOS `CLOUD-to-TRUSTED` rule 30 (vigilant) from `443,9443` to `9443`
+    - [ ] VyOS accepts `10.1/16`, `10.2/16` and `10.3/16` from the single link WireGuard peer, so link can source as vigilant or rama; split peers or filter by source
+    - [ ] Close public SSH on link (`tofu/aws/public-gateway.tf:22-28`) and rama (`tofu/oci/main.tf:95-103`); manage both over WireGuard
+    - [ ] Declare a firewall and dedicated network for vigilant (none in tofu; GCP default-network rules unverified)
+  - [ ] Kubernetes east-west: baseline has `enableDefaultDeny` false and 71 of 99 namespaces have no policy
+    - [ ] Default-deny for the public apps first: jellyfin, nextcloud, openwebui
+    - [ ] Then vaultwarden, gitlab-runner, kestra, kube-system
+  - [ ] Fix `tetragon-escape-signal`: it filters on `tetragon-host-runtime-socket`, the policy is `tetragon-host-runtime-socket-access` (`infra-security.yml`, `tetragon_policies.tf:118`)
+  - [ ] Secrets in logs: scrub and rotate (rotation needs explicit approval)
+    - [ ] `X-Clickhouse-Key` request header stored by home Caddy access logs
+    - [ ] Kestra webhook key in Kestra access-log paths (readable with the Grafana Viewer token)
+  - [ ] Visibility per bridge
+    - [ ] Tailscale: ship the rootful `tailscale` container journals from home-gateway-stack; decide between flow-log streaming and `--snat-subnet-routes=false` (subnet-routed traffic all appears as the gateway)
+    - [ ] Keycloak: log successful `LOGIN` and admin events, and trust the forwarded client IP (public requests show `10.1.0.10`)
+    - [ ] CrowdSec: ship decisions and AppSec blocks, not only counters
+    - [ ] Log accepted `CLOUD-to-*` flows on VyOS and VPS nftables drops (`roles/site_wireguard/templates/firewall.nft.j2`)
+    - [ ] GigaHub: `network.observations` has no `gigahub` rows although its materialized view exists
+    - [ ] Suricata: fix capture threading ("STREAM pkt seen on wrong thread" is most of ~8M events/week) and suppress stream-event noise
+  - [ ] Home zones: MEDIA-to-SERVICES is accept-all (`configure_router.yml:836`); MGMT is accept-all (`:667-670`); GigaHub Wi-Fi and firewall are outside IaC
+  - [ ] Public edge hardening
+    - [ ] `tv` and `nextcloud` are DNS-only and expose the origin IP every proxied zone shares; Cloudflare check is "any Cloudflare IP" (consider Authenticated Origin Pulls)
+    - [ ] Remove the TEMPORARY Outline 401 CrowdSec whitelist (`public_gateway_stack/crowdsec/site.yml:137-155`)
+    - [ ] oauth2-proxy accepts `EMAIL_DOMAINS "*"` and runs `:latest`; Cloudflare DNS token is written `0644` on link
+    - [ ] 14 static SSH keys in `config/authorized_keys` sit alongside the SSH CA; make hosts CA-only
+  - [ ] Patch posture: 148 CRITICAL Trivy findings, Keel pod in Error, no pending-update signal
+  - [ ] Uptime Kuma still probes the removed Prometheus/Loki ports on monitoring-stack
+  - [ ] Tailscale: admin grant is `10.0.0.0/8:*` and `192.168.0.0/16:*` (port-scope it); OpenBao and S3 are bound to the shared-tailnet address (`home_gateway_stack/caddy/Caddyfile.j2:680,717`); tailnet login is default SSO, not Keycloak; remove the leftover `tag:vigil-probe` tagOwner (`tofu/tailscale.tf:28-31`)
+  - [ ] `status.shdr.ch` (Uptime Kuma on vigilant) has no Cloudflare Access policy; no Cloudflare WAF, rate-limit or Access resources exist in tofu
+  - [ ] `*.seven30.xyz` and `*.attain.ing` wildcards publish tenant apps unreviewed; vcluster egress allows `toEntities cluster` (`vcluster_network_policy.tf:54`)
+  - [ ] link forwards to home Caddy over plain HTTP inside WireGuard, and VPS journals are pulled over plain HTTP: root on a VPS reads Keycloak traffic and can alter its own evidence
+  - [ ] Kubernetes admission: 12 namespaces at `privileged` (incl. `gitlab-runner`, with 3 Tetragon untrusted-activity alerts firing); Kyverno has no pod-security policies, 436 PolicyReport failures and 19 admission-controller restarts; Trivy has 85 reports for 188 workloads
+  - [ ] Sensor gaps: pppoe0 and eth0/MGMT are not mirrored to Zeek; `zeek.conn` keeps 14 days; no rule reads CrowdSec (about 15k active bans, 3,180 local alerts in 7 days)
+  - [ ] Docs that disagree with code: `docs/networking.md:63-64` (IoT/Guest intra-VLAN is dropped, not allowed); `tofu/oci/main.tf:17-18` header (no udp/51820 rule exists)
+  - [ ] Perimeter scanner `seraph`: split the A1 allowance (rama 1 OCPU / 4 GB, seraph 1 OCPU / 8 GB, own VCN, no WireGuard); do after the VPS-to-home path is closed
 - [ ] Cloud-audit (vigil) rollout — deployed, soaking ([PLAN](https://gitlab.home.shdr.ch/so/vigil/-/blob/main/PLAN.md))
   - [x] P0 identities/trusts (federated-jwt, AWS/GCP/OCI/TS/Bao legs, negatives verified)
   - [x] P2 on-cluster (cloud-audit ns, Kyverno pin, CNP, PVC, serve Deployment; all collectors green)
@@ -118,6 +172,9 @@
 ## P3
 
 - [ ] Continue NixOS migration ([docs](../nixos.md), [exploration](exploration/nixos.md))
+  - [ ] Security reasons to finish it: the Ansible agent's journald filter shipped almost no logs from Fedora VMs while NixOS VMs shipped the whole journal; Fedora patching has no feedback; one baseline in `nix/modules/base.nix` instead of per-playbook
+  - [ ] Fedora VMs remaining (live `os.version`, 2026-11-26): nfs (41, two releases behind — first), step-ca, keycloak, openbao, notifications-stack, iot-management-stack, monitoring-stack, home-gateway-stack, gitlab (all 43)
+  - [ ] Read each playbook for blockers before ordering the rest; the candidate order above is a first pass
   - [x] Dev shell (`nix develop`) - replaced Docker toolbox
   - [x] AdGuard LXC - DNS, OTEL, Prometheus exporter
   - [x] IDS Stack VM - Zeek via quadlet-nix
