@@ -46,10 +46,6 @@ locals {
     local.mcp_google_maps ? { google-maps = 8004 } : {},
   )
 
-  # The servers LiteLLM still routes to (litellm_config.yaml.tftpl
-  # mcp_servers): finviz, which Foundry's key may use.
-  mcp_litellm_routes = ["finviz"]
-
   # The upstream credential each server is given, by server name.
   mcp_secrets = merge(
     {
@@ -249,7 +245,7 @@ resource "kubernetes_service_v1" "mcp" {
   }
 }
 
-# Only the gateways reach a server. Health probes come from the node, which
+# Only Meridian reaches a server. Health probes come from the node, which
 # Cilium admits without a rule.
 resource "kubernetes_manifest" "mcp_cilium_network" {
   depends_on = [kubernetes_manifest.cilium_cluster_baseline_network]
@@ -272,12 +268,6 @@ resource "kubernetes_manifest" "mcp_cilium_network" {
           fromEndpoints = [{ matchLabels = { "io.kubernetes.pod.namespace" = local.meridian_namespace, "app.kubernetes.io/name" = "meridian" } }]
           toPorts = [{
             ports = [for port in distinct(values(local.mcp_port)) : { port = tostring(port), protocol = "TCP" }]
-          }]
-        },
-        {
-          fromEndpoints = [{ matchLabels = { "io.kubernetes.pod.namespace" = local.litellm_ns, "app" = "litellm" } }]
-          toPorts = [{
-            ports = [for server, port in local.mcp_port : { port = tostring(port), protocol = "TCP" } if contains(local.mcp_litellm_routes, server)]
           }]
         },
       ]

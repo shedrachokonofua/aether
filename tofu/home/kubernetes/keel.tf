@@ -4,7 +4,7 @@
 # Keel (keel.sh) watches Deployments carrying keel.sh/* annotations and
 # force-updates them when the digest behind a fixed tag (:latest) changes in the
 # private GitLab registry. Only OUR CI-built images opt in: orion,
-# litellm's espn-mcp + finviz-mcp-server sidecars, mnemo, deskplane and helios.
+# the espn and finviz MCP servers, mnemo, deskplane and helios.
 # Third-party :latest sidecars are excluded per-workload via
 # keel.sh/monitorContainers.
 #

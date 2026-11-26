@@ -189,7 +189,6 @@
     # must track litellm_config.yaml.tftpl's mcp_servers. Works over /mcp/
     # (what OpenWebUI uses); LiteLLM 1.99.1's /mcp-rest search returns [].
     litellm_openwebui_mcp_servers:
-      - finviz
       # oauth_delegate: tools run as the OpenWebUI user's forwarded token.
       - pop
       # oauth2_token_exchange: tools run as the user via a Keycloak-exchanged
@@ -207,7 +206,6 @@
     litellm_seven30_foundry_alias: seven30-foundry
     litellm_seven30_foundry_mcp_servers:
       - deskplane
-      - finviz
     # The `orion` Daimyo agent's gateway key: its value is in OpenBao
     # (orgs/personal/litellm-mcp, tofu/home/openbao_daimyo.tf), not SOPS, so it
     # is found by alias. MCP only (no models); the server list must track
@@ -221,7 +219,6 @@
       - siren
       - shop
       - withings
-      - finviz
       - fm
       - instacart
       - pharos
