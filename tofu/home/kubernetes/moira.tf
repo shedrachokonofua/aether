@@ -11,10 +11,10 @@
 # the LiteLLM model_list).
 
 locals {
-  # cfe0807 (moira main): tier members run at request effort, else
-  # tiers.yaml effort_defaults; their listed effort only gates the band.
-  # CI pipeline 18064 passed before this digest was selected.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:749f7ad86d373daf4875b1f5a583a44db4bc6701283d5e40a9dce1f42b594e6f"
+  # 4ca6aec (moira main): GLM-5.4 scored at GLM-5.3's max (estimate) on
+  # cfe0807 (members run at request effort, else tiers.yaml effort_defaults).
+  # CI pipeline 18084 passed before this digest was selected.
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:16365f87f1e333e4c71b84ca431f982e57173e01f4fc1a5e40c93e075b95ab0e"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }

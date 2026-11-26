@@ -323,7 +323,8 @@ all succeeded. The account snapshot reported 0% rolling and weekly usage.
 weights 4:1. Holmes primary uses this canonical group.
 GLM-5.4 (released 2026-11-23) is the standalone pin `zai/glm-5.4`: on release
 day only the Z.AI coding plan served it, so it has no `router/*` pool. AA has
-not scored it yet, so it is not a Moira tier member.
+not scored it yet; Moira uses GLM-5.3's max score (32) as a labeled estimate,
+and GLM-5.4 max replaced GLM-5.3 as the Z.AI member of `moira/balanced`.
 `router/glm-5.3-flash` is a separate pool across Z.AI, Command Code,
 OpenCode Go, and Ollama Cloud. Provider-prefixed Flash pins remain standalone,
 including the Clinepass pin; Clinepass is not a pool member.
@@ -866,7 +867,7 @@ membership in [`moira/tiers.yaml`](../tofu/home/kubernetes/moira/tiers.yaml):
 | --- | --- | --- | --- |
 | `moira/frontier` | 50 and up | 4 | Opus 5.5 max; GPT-6.2 Sol max; Muse Wonder Full max; Gemini 4 Neon xhigh |
 | `moira/strong` | 40–49 | 6 | Kimi K3.1 Pro max; GPT-6.1 Terra xhigh; Muse Wonder max; Sonnet 5.5 high; Gemini 4 Neon low; Qwen4 Max xhigh |
-| `moira/balanced` | 30–39 | 8 | Grok 4.7 high; Haiku 5.5 xhigh; Qwen3.8 Max xhigh; DeepSeek V4.1 Flash 1017 max; GLM-5.3 max; MiMo V2.6 Pro on Xiaomi, Command Code and OpenCode Go |
+| `moira/balanced` | 30–39 | 8 | Grok 4.7 high; Haiku 5.5 xhigh; Qwen3.8 Max xhigh; DeepSeek V4.1 Flash 1017 max; GLM-5.4 max (estimated 32); MiMo V2.6 Pro on Xiaomi, Command Code and OpenCode Go |
 | `moira/flash` | 25–29 | 7 | GLM-5.3 Flash max on Z.AI and Ollama Cloud; GPT-6 Luna max; MiMo V2.6 Flash on Xiaomi, Command Code and OpenCode Go; Gemini 4 Hydrogen low |
 
 Each general tier has one concrete model/effort representative per shared
