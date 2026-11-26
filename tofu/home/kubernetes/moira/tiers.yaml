@@ -1,8 +1,32 @@
 # Highest reasoning_effort each upstream accepts. Verified 2026-10-01 via
 # LiteLLM: MiMo V2.6 Pro/Flash return 400 for xhigh and max, 200 for high.
+# grok-bridge rejects max (src/chat-request.ts accepts none..xhigh).
 effort_caps:
   mimo-v2.6-pro: high
   mimo-v2.6-flash: high
+  grok-4.7: xhigh
+
+# Effort per upstream id when the request names none; a request's own effort
+# passes through (capped above). Required for every general-tier member with
+# an explicit effort: that effort is only its AA-rated one, which decides
+# eligibility. `high` where the provider is known to accept it; the rest keep
+# their rated effort until `high` is verified on that leg.
+effort_defaults:
+  claude-opus-5-5: high
+  gpt-6.2-sol: high
+  muse-wonder-full-1.0-contributor: high
+  k3.1-pro: high              # Kimi takes low/high/max
+  gpt-6.1-terra: high
+  muse-wonder-1.0-contributor: high
+  claude-sonnet-5-5: high
+  qwen4-max: high             # Qwen4 takes low/high/xhigh
+  grok-4.7: high
+  claude-haiku-5-5: high
+  qwen3.8-max: xhigh
+  deepseek-v4.1-flash: max
+  glm-5.3: max
+  glm-5.3-flash: max
+  gpt-6-luna: high
 
 # Moira tiers / providers / plans / groups.
 #
@@ -11,7 +35,8 @@ effort_caps:
 # either null produces no window.
 
 # AA Intelligence Index v5, integer-rounded scores. Each general tier selects
-# one model/effort per shared quota pool; pools remain shared across tiers.
+# one model per shared quota pool; a member's effort is the AA-rated effort
+# that places it in the band (cyber tiers also run it at that effort).
 tiers:
   frontier:
     min: 50

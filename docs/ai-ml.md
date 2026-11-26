@@ -273,8 +273,9 @@ no Standard Muse route for any caller (2026-10-13, after `seven30-foundry`'s
 direct `meta/muse-spark-1.3` calls took the Power plan's weekly quota from 1% to
 21% in four hours). LiteLLM serves `meta/muse-spark-1.3-contributor`,
 `meta/muse-wonder-1.0-contributor` and `meta/muse-wonder-full-1.0-contributor`.
-Moira selects Wonder Full at max for frontier (AA v5 50) and Wonder at max
-for strong (AA v5 43). The old v4-derived Wonder xhigh estimate is removed;
+Wonder Full qualifies for frontier at max (AA v5 50) and Wonder for strong at
+max (AA v5 43); Moira runs both at the caller's effort, else `high`. The old
+v4-derived Wonder xhigh estimate is removed;
 the general score table contains measured v5 rows only.
 All draw on the same subscription quota at different per-token rates (Meta
 publishes none for the subscription); on 2026-09-26 both Spark tiers returned
@@ -861,7 +862,7 @@ anything else passes through unchanged. General tiers use integer-rounded
 measurements from `so/moira/data/aa_scores.yaml`, with explicit pool-aware
 membership in [`moira/tiers.yaml`](../tofu/home/kubernetes/moira/tiers.yaml):
 
-| Tier | AA v5 band | Distinct configured quota pools | Representatives |
+| Tier | AA v5 band | Distinct configured quota pools | Representatives (AA-rated effort) |
 | --- | --- | --- | --- |
 | `moira/frontier` | 50 and up | 4 | Opus 5.5 max; GPT-6.2 Sol max; Muse Wonder Full max; Gemini 4 Neon xhigh |
 | `moira/strong` | 40–49 | 6 | Kimi K3.1 Pro max; GPT-6.1 Terra xhigh; Muse Wonder max; Sonnet 5.5 high; Gemini 4 Neon low; Qwen4 Max xhigh |
@@ -896,12 +897,15 @@ providers are excluded from score-based tiers. Unscored models are not tier
 candidates. Named groups have their own explicit membership; this preserves
 the unscored local computer-use fallback.
 
-Tier `members` pin both the concrete model and its reasoning effort.
-A request cannot substitute another effort from the same pool. Native
-`default` members retain capped caller effort; a selected effort may use a
-native-only score without inventing a separate benchmark measurement.
-Score bands and the cyber refusal ceiling still guard eligibility, including
-explicit members. Tiers without `members` retain score-only effort selection.
+Tier `members` pin the concrete model and the AA-rated effort that admits it:
+that exact effort's score (never another variant's) must sit in the band. In
+the general tiers the routed model then runs at the caller's effort, clamped by
+`effort_caps`, else at its `effort_defaults` entry in `tiers.yaml` (`high` for
+Opus, Sol, Muse, Kimi, Terra, Sonnet, Qwen4 Max, Grok, Haiku and Luna; the
+rest keep their rated effort). Native `default` members without a default send
+no effort. `moira/cyber` still runs each member at its rated effort, where its
+refusal rate was measured. Score bands and the cyber refusal ceiling still
+guard eligibility. Tiers without `members` retain score-only effort selection.
 
 Ranking uses quota freshness (fresh > stale > unknown), urgency (remaining
 quota per hour until reset), then score. Sessions stick while the pinned
