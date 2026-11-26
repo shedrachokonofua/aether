@@ -2067,7 +2067,8 @@ resource "kubectl_manifest" "daimyo_personal_task_policy" {
 
 # Org `cicada`: the cicada service account (Service principal `svc:cicada`,
 # entity uid Service::"svc:cicada", attributes name and sub both "svc:cicada")
-# writes Agents and drives sandboxes and sessions. The baseline already
+# writes Agents, creates a project for each repository it onboards (Cicada
+# decision 123) and drives sandboxes and sessions. The baseline already
 # permits a Service agent::read, task::read, task::cancel, session::create
 # and artifact::read; these cover the rest, and only this one principal.
 resource "kubectl_manifest" "daimyo_cicada_policy" {
@@ -2078,6 +2079,7 @@ resource "kubectl_manifest" "daimyo_cicada_policy" {
     "service-sessions"  = "permit (principal == Service::\"svc:cicada\", action in [Action::\"session::create\", Action::\"session::use\", Action::\"session::read\", Action::\"session::close\"], resource);"
     "service-tasks"     = "permit (principal == Service::\"svc:cicada\", action in [Action::\"task::read\", Action::\"task::cancel\"], resource is Task);"
     "service-artifacts" = "permit (principal == Service::\"svc:cicada\", action == Action::\"artifact::read\", resource is Artifact);"
+    "service-projects"  = "permit (principal == Service::\"svc:cicada\", action == Action::\"project::create\", resource is Project);"
   }
   depends_on = [kubectl_manifest.daimyo_org]
 
@@ -2155,15 +2157,17 @@ resource "kubectl_manifest" "daimyo_cicada_skills" {
   })
 }
 
-# Cicada's ci_exec sandboxes, one class per repository (its workflow's
-# `[ci] sandbox_class`). Each repository owns its image: its pipeline
-# publishes `<repo>/ci:<commit sha>`, and Cicada names the digest per sandbox
-# (daimyo 8ecf6f4 `imageRepository`; Cicada decision 57). A class holds only
-# the allowed repository and the size, against cicada-tasks' sandbox-tier
-# quota. so/cicada runs in project `cicada` (daimyo_project above), so it has
-# a class here but no entry in daimyo_cicada_repos, which also makes projects.
+# Cicada's ci_exec sandboxes (each repository workflow's `[ci]
+# sandbox_class`). Each repository owns its image: its pipeline publishes
+# `<repo>/ci:<commit sha>`, and Cicada names the digest per sandbox (daimyo
+# 8ecf6f4 `imageRepository`; Cicada decision 57). A class holds only the
+# allowed image repository and the size, against cicada-tasks' sandbox-tier
+# quota. Classes are shared, one per kind of sandbox (Cicada decision 123):
+# an `imageRepository` ending in `/` admits every repository under that path,
+# so a new repository in group `seven30` or `so` names its group's class and
+# needs nothing here.
 resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
-  for_each   = merge(local.daimyo_cicada_repos, local.daimyo_cicada_self_sandbox)
+  for_each   = local.daimyo_cicada_sandbox_classes
   depends_on = [kubectl_manifest.daimyo_project, kubectl_manifest.daimyo_sandboxclass_crd]
 
   yaml_body = yamlencode({
@@ -2175,7 +2179,7 @@ resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
       labels    = local.daimyo_cr_labels
     }
     spec = {
-      imageRepository = "registry.gitlab.home.shdr.ch/${each.value.repo}/ci"
+      imageRepository = each.value.image_repository
       resources       = each.value.resources
       defaultTtl      = "8h"
       maxTtl          = "24h"
@@ -2184,10 +2188,13 @@ resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
 }
 
 locals {
-  # Every repository Cicada runs, keyed by its daimyo project and SandboxClass
-  # name (the repository path's last segment). Repositories outside group `so`
-  # are shared with `so` as Maintainer, so its cicada-lander and cicada-writer
-  # group tokens reach them.
+  # Repositories whose daimyo project aether created, keyed by project (the
+  # repository path's last segment). Cicada creates the project of any other
+  # repository itself when it first loads it (decision 123), so new
+  # repositories are not added here. Repositories outside group `so` are
+  # shared with `so` as Maintainer, so its cicada-lander and cicada-writer
+  # group tokens reach them. `resources` sizes the repository's own class
+  # until its workflow names a shared one.
   daimyo_cicada_repos = {
     # so/molecule: wasmtime and the component recipes are heavy builds.
     # workspace is daimyo's 20Gi maximum. A sandbox reserves `requests` and
@@ -2233,6 +2240,29 @@ locals {
       resources = { cpu = "3", memory = "8Gi", workspace = "20Gi", requests = { cpu = "1", memory = "3Gi" } }
     }
   }
+  # The shared classes, plus each repository's own until its workflow moves.
+  # A building sandbox measured ~1.5 CPU and ~0.5Gi and near zero between
+  # ci_exec calls (molecule, 2026-10-29), so `requests` is what is reserved
+  # and the limits are what a build may burst to.
+  daimyo_cicada_sandbox_classes = merge(
+    {
+      for name, r in merge(local.daimyo_cicada_repos, local.daimyo_cicada_self_sandbox) :
+      name => { image_repository = "registry.gitlab.home.shdr.ch/${r.repo}/ci", resources = r.resources }
+    },
+    {
+      # Every seven30 repository: bun apps, Playwright Chromium for e2e.
+      seven30 = {
+        image_repository = "registry.gitlab.home.shdr.ch/seven30/"
+        resources        = { cpu = "3", memory = "4Gi", workspace = "20Gi", requests = { cpu = "1", memory = "1Gi" } }
+      }
+      # Every so repository, light or heavy (cicada's cargo with Postgres and
+      # NATS, molecule's wasmtime): 1Gi reserved, bursting to 8Gi.
+      so = {
+        image_repository = "registry.gitlab.home.shdr.ch/so/"
+        resources        = { cpu = "3", memory = "8Gi", workspace = "20Gi", requests = { cpu = "1", memory = "1Gi" } }
+      }
+    },
+  )
 }
 
 # Org `personal`: a user decides the approvals he is an assignee of. The

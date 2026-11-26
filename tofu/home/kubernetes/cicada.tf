@@ -49,7 +49,10 @@ locals {
   # restore of the pre-cutover dump), 6acbf1f (104), d73cfbd (100-103),
   # 48392d0 and fa6c7f1 (94-99), f434af1 (93), f7eeb65 (74), a70b47c (73),
   # 9ab5ae6 (72), back to 2ee3cee (60).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:441e0b67666b19b7a8507da6a1371e12378edddd0f9698f987245dd9404aeab5"
+  # 68af68e (main pipeline 18055, every job green): a repository Cicada loads
+  # gets its daimyo project, its webhook and "pipelines must succeed", and a
+  # refusal is one operator Question (decision 123). No migration.
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:432686fee5141afbb9c1d953ba9c5e9fde87c2145854af7cfafa2367877e8ab2"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
@@ -80,6 +83,9 @@ locals {
     url = "https://gitlab.home.shdr.ch/"
     token_file = "/etc/cicada/secrets/gitlab-token"
     webhook_token_file = "/etc/cicada/secrets/gitlab-webhook-token"
+    # Onboarding adds or updates each repository's project hook to this URL
+    # (Cicada decision 123).
+    webhook_url = "https://${local.cicada_host}/hooks/gitlab"
 
     [agents]
     # As pods in cicada-tasks reach this Service.
@@ -140,11 +146,10 @@ locals {
 # writers' git grants from it.
 # `webhook_token` is the secret of every Cicada repository's project hook
 # (https://cicada.home.shdr.ch/hooks/gitlab; merge request, pipeline, push
-# and note events: so/cicada hook 10, so/molecule, so/turmeric,
-# seven30/buyerfact hook 13, seven30/beacon hook 14, so/helios hook 15);
-# GitLab sends it as X-Gitlab-Token. Repositories
+# and note events), which Cicada adds itself when it first loads a
+# repository (decision 123); GitLab sends it as X-Gitlab-Token. Repositories
 # outside `so` are shared with group `so` as Maintainer so both group tokens
-# reach them (seven30/buyerfact).
+# reach them (seven30/buyerfact, beacon, crucible).
 data "vault_kv_secret_v2" "cicada_gitlab" {
   mount = "kv"
   name  = "cicada/gitlab"
