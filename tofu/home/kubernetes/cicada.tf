@@ -52,7 +52,9 @@ locals {
   # 68af68e (main pipeline 18055, every job green): a repository Cicada loads
   # gets its daimyo project, its webhook and "pipelines must succeed", and a
   # refusal is one operator Question (decision 123). No migration.
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:432686fee5141afbb9c1d953ba9c5e9fde87c2145854af7cfafa2367877e8ab2"
+  # e6dd68e (main pipeline 18076): a refused onboarding step asks to add the
+  # `cicada` and `cicada-writer` users to the repository's group (124).
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:63e2f0420a96bcb553d01ba50661a63556da92c4cee8ccc1025ce7daec8966a2"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
@@ -136,20 +138,20 @@ locals {
 # editing main.tf and talos_cluster.tf, both of which have unrelated
 # uncommitted changes). Before the first plan:
 #   bao kv put kv/cicada/gitlab \
-#     token="$(cat ~/.config/cicada/group-lander-token)" \
+#     token="$(cat ~/.config/cicada/cicada-user-lander-token)" \
 #     client_secret="$(tofu -chdir=tofu/home output -raw keycloak_cicada_client_secret)" \
 #     webhook_token="$(cat ~/.config/cicada/gitlab-webhook-token)"
-# `token` is the lander token: group access token cicada-lander on group `so`
-# (api scope, Maintainer), so one token reaches every repository Cicada runs.
-# The writers' git token is kv/orgs/cicada/gitlab `token`: group access token
-# cicada-writer on `so` (read/write_repository, Developer); daimyo mints the
-# writers' git grants from it.
+# `token` is the personal access token `cicada-lander` of GitLab user `cicada`
+# (api scope; Maintainer of groups `so` and `seven30`; expires 2027-11-25).
+# The writers' git token is kv/orgs/cicada/gitlab `token`: personal access
+# token `cicada-writer` of user `cicada-writer` (read/write_repository;
+# Developer of both groups); daimyo mints the writers' git grants from it.
+# Group access tokens cannot join another group, so Cicada uses users
+# (Cicada decision 124); a new group needs both users added once.
 # `webhook_token` is the secret of every Cicada repository's project hook
 # (https://cicada.home.shdr.ch/hooks/gitlab; merge request, pipeline, push
 # and note events), which Cicada adds itself when it first loads a
-# repository (decision 123); GitLab sends it as X-Gitlab-Token. Repositories
-# outside `so` are shared with group `so` as Maintainer so both group tokens
-# reach them.
+# repository (decision 123); GitLab sends it as X-Gitlab-Token.
 data "vault_kv_secret_v2" "cicada_gitlab" {
   mount = "kv"
   name  = "cicada/gitlab"
