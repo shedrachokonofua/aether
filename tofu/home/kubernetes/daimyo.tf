@@ -356,7 +356,14 @@ locals {
   # retry). Server and the SandboxClass CRD's description, no migration: an
   # `imageRepository` ending in `/` admits every repository under it, so one
   # class serves a whole group (Cicada decision 123).
-  daimyo_server_tag = "sha256:8dd6584302bbc259f990464d4faa6ae0c69a3e244bb71bcf5f3bd8638dbe3fed"
+  # ed1b048 (MR !30 pipeline 18105 green; main pipeline 18123: fmt, clippy,
+  # rust-test-engine and the server build green). Server only, Agent CRD
+  # first (daimyo_agent_crd), no migration: `auth: {gitlab: {}}` on an http
+  # or mcp grant sends the task's per-agent GitLab PAT with `read_api` added,
+  # so an agent reads the GitLab REST API as daimyo_<org>_<agent> instead of
+  # a static token in OpenBao (Topaz's `gitlab` grant). See daimyo
+  # docs/ops/upgrades.md "GitLab API grants".
+  daimyo_server_tag = "sha256:913e4275d59e9f7f6dd9efeb35a45e964816ecfc71fcb180899d3e6dcd93c8da"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
