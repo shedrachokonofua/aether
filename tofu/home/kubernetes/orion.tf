@@ -91,6 +91,15 @@ resource "terraform_data" "orion_litellm_spend_key" {
   }
 }
 
+# Web Push (VAPID) signing key for the installed app's notifications. Orion
+# derives the public key from it (src/lib/server/push.ts). Replacing it
+# invalidates every device's subscription: each must turn notifications on
+# again in Settings.
+resource "tls_private_key" "orion_vapid" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
 # Env vars sourced from tofu state + the OIDC client secret var. The OIDC
 # client secret is passed down from the parent module (see talos_cluster.tf).
 locals {
@@ -126,6 +135,8 @@ locals {
     FEED_OWNER = var.operator_oidc_subject
     NTFY_URL   = "https://ntfy.home.shdr.ch"
     NTFY_TOPIC = var.orion_ntfy_topic
+    # Web Push to the installed app beside ntfy (tls_private_key.orion_vapid).
+    VAPID_PRIVATE_KEY_PEM = tls_private_key.orion_vapid.private_key_pem
     # GitLab for the gitlab feed topic's home-MCP `gitlab` tool: a read_api
     # token of the `orion-feed` GitLab user (reporter on so, seven30, lute and
     # shdrch's projects; expires 2027-10-15).
