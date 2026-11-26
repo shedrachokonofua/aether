@@ -168,7 +168,7 @@ and a cold session's first turn may run before MCP discovery finishes.
 | `homeassistant` | `ha-mcp` sidecar | `homeassistant.telemetry_token` | none |
 | `karakeep` | `@karakeep/mcp` via supergateway | `karakeep.mcp_api_key` | none |
 | `nextcloud` | `cbcoutinho/nextcloud-mcp-server` 0.213.2, `:8017` | `random_password.nextcloud_mcp_app_password` (app password on Shedrach's account) | none (55 tools: Files, Sharing, Calendar, Contacts) |
-| `withings` | hosted `mcp.withings.com` | OAuth login of LiteLLM user `orion` | none |
+| `withings` | hosted `mcp.withings.com` | the sign-in Meridian holds | none |
 | `pubmed` | `cyanheads/pubmed-mcp-server` 2.12.2, `:8011` | none (keyless E-utilities) | none |
 | `ticketmaster` | `sourabhmadur/ticketmaster-mcp` `bc3367d` via mcp-proxy, `:8012` | `ticketmaster.api_key` | none |
 | `openfda` | `cyanheads/openfda-mcp-server` 0.10.0, `:8013` | none (1,000 requests/day) | 12 tools, no `openfda_dataframe_*` |
@@ -288,9 +288,11 @@ yet.
 
 ### Withings
 
-Consent starts at `https://litellm.home.shdr.ch/withings/authorize` so the
-browser gets LiteLLM's state cookie; the public DCR client ID is pinned in the
-registry entry. Token storage and refresh are in [AI/ML](ai-ml.md).
+Meridian holds the one Withings sign-in (`login: true` on the source,
+`tofu/home/kubernetes/meridian.tf`). To sign in again, call `meridian_login`
+with `source: withings` as a caller that may use it and open the link it
+returns. The tokens are kept on the `meridian-state` claim and renewed by
+Meridian.
 
 ### PubMed
 
