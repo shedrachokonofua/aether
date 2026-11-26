@@ -2,5 +2,5 @@
 # chart `0.1.0-g<sha>` (CI publishes both per main commit). Deploy by setting
 # this SHA once its pipeline has published them; see docs/orion.md.
 locals {
-  orion_release = "efbcbab208060bf92416cefdb8a7371751c97c85"
+  orion_release = "d3bbe7897ce21caf5dfe3b840645680ecd66e39e"
 }
