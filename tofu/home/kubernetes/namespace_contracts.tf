@@ -744,6 +744,22 @@ locals {
         "pod-security.kubernetes.io/enforce" = "baseline"
       }
     }
+    "mcp" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "none"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      description             = "Third-party MCP tool servers, each its own Deployment, reached only by Meridian and LiteLLM"
+      source_file             = "tofu/home/kubernetes/mcp.tf"
+      egress                  = "internet"
+      registry_access         = "gitlab"
+      hostnames               = ["espn-mcp.home.shdr.ch"]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled"   = "true"
+        "pod-security.kubernetes.io/enforce" = "baseline"
+      }
+    }
     "minos" = {
       tier  = "guest",
       owner = "minos",
@@ -862,7 +878,6 @@ locals {
       registry_access         = "gitlab"
       hostnames = [
         "litellm.home.shdr.ch",
-        "espn-mcp.home.shdr.ch",
       ],
       extra_labels = {
         "goldilocks.fairwinds.com/enabled"   = "true"

@@ -1222,15 +1222,15 @@ general_settings:
 
 mcp_servers:
   time:
-    url: "http://localhost:8003/mcp"
+    url: "http://time.mcp.svc.cluster.local:8003/mcp"
   comfyui:
-    # Official Comfy-Org comfy-mcp (litellm.tf comfy-mcp sidecar) driving the
+    # Official Comfy-Org comfy-mcp (mcp.tf comfyui) driving the
     # in-cluster ComfyUI. Only generation, template, workflow and job tools
     # are exposed. Blocked: install/update/version switching, model downloads,
-    # launch/stop/restart and logs (they act on the sidecar, which has no
+    # launch/stop/restart and logs (they act on the server, which has no
     # ComfyUI), partner/auth/billing (Comfy credits), and upload_file (it
-    # uploads any file the sidecar can read into ComfyUI's input dir).
-    url: "http://localhost:8008/mcp"
+    # uploads any file the server can read into ComfyUI's input dir).
+    url: "http://comfyui.mcp.svc.cluster.local:8008/mcp"
     allowed_tools:
       - server_info
       - system_stats
@@ -1251,10 +1251,8 @@ mcp_servers:
       - nodes
       - search_models
   # Web data (scrape/crawl/search/parse) is deskplane, below.
-  # coingecko:
-  #   url: "http://localhost:8002/"
   finviz:
-    url: "http://localhost:8000/mcp"
+    url: "http://finviz.mcp.svc.cluster.local:8000/mcp"
   pop:
     # pop (sites + functions). oauth_delegate: the caller is admitted by its
     # x-litellm-api-key and its own `Authorization` bearer is forwarded to pop
@@ -1281,45 +1279,45 @@ mcp_servers:
     client_secret: "${daimyo_mcp_exchange_secret}"
     audience: "daimyo"
   espn:
-    url: "http://localhost:8080/mcp"
+    url: "http://espn.mcp.svc.cluster.local:8080/mcp"
   tmdb:
-    url: "http://localhost:8006/mcp"
+    url: "http://tmdb.mcp.svc.cluster.local:8006/mcp"
   jellyfin:
-    url: "http://localhost:8007/mcp"
-  # Home Assistant (litellm.tf ha-mcp sidecar, homeassistant-ai/ha-mcp):
+    url: "http://jellyfin.mcp.svc.cluster.local:8007/mcp"
+  # Home Assistant (mcp.tf homeassistant, homeassistant-ai/ha-mcp):
   # loopback-only, admin token. All tools are exposed; only the daimyo-orion
   # key's scope includes it, and Orion's grant asks before admin calls.
   homeassistant:
-    url: "http://localhost:8009/mcp"
-  # Karakeep (litellm.tf karakeep-mcp sidecar: @karakeep/mcp behind
+    url: "http://homeassistant.mcp.svc.cluster.local:8009/mcp"
+  # Karakeep (mcp.tf karakeep: @karakeep/mcp behind
   # supergateway, loopback). Acts as Shedrach's Karakeep account; only the
   # daimyo-orion key's scope includes it, and Orion's grant asks before
   # deletes and list updates (which can publish a list).
   karakeep:
-    url: "http://localhost:8010/mcp"
-  # Nextcloud (litellm.tf nextcloud-mcp sidecar: cbcoutinho/nextcloud-mcp-server
+    url: "http://karakeep.mcp.svc.cluster.local:8010/mcp"
+  # Nextcloud (mcp.tf nextcloud: cbcoutinho/nextcloud-mcp-server
   # 0.213.2, loopback). Acts as Shedrach's Nextcloud account through a
   # dedicated app password, so it reaches all his files, calendars, task lists
-  # and address books. The sidecar registers the Files, Sharing, Calendar and
+  # and address books. The server registers the Files, Sharing, Calendar and
   # Contacts tools only, so there is no allowlist. Only the daimyo-orion key's
   # scope includes it, and Orion's grant asks before deletes, moves, share
   # changes, bulk calendar edits, calendar management and meeting invitations.
   nextcloud:
-    url: "http://localhost:8017/mcp"
-  # PubMed/PMC literature (litellm.tf pubmed-mcp sidecar:
+    url: "http://nextcloud.mcp.svc.cluster.local:8017/mcp"
+  # PubMed/PMC literature (mcp.tf pubmed:
   # cyanheads/pubmed-mcp-server 2.12.2, loopback). Keyless NCBI E-utilities
   # (plus Europe PMC/OpenAlex fallbacks); all 12 tools are read-only lookups,
   # so no allowlist. Only the daimyo-orion key's scope includes it.
   pubmed:
-    url: "http://localhost:8011/mcp"
-  # openFDA (litellm.tf openfda-mcp sidecar: cyanheads/openfda-mcp-server
+    url: "http://pubmed.mcp.svc.cluster.local:8011/mcp"
+  # openFDA (mcp.tf openfda: cyanheads/openfda-mcp-server
   # 0.10.0, loopback). Keyless openFDA (1K requests/day); all tools are
   # read-only lookups. DataCanvas is off (CANVAS_PROVIDER_TYPE=none), but the
   # server still lists the openfda_dataframe_* tools (they only answer
   # canvas_disabled), so the allowlist keeps them out of the gateway. Only the
   # daimyo-orion key's scope includes it.
   openfda:
-    url: "http://localhost:8013/mcp"
+    url: "http://openfda.mcp.svc.cluster.local:8013/mcp"
     allowed_tools:
       - openfda_drug_profile
       - openfda_search_adverse_events
@@ -1333,25 +1331,25 @@ mcp_servers:
       - openfda_search_drug_approvals
       - openfda_search_device_clearances
       - openfda_lookup_ndc
-  # OpenAlex scholarly literature (litellm.tf openalex-mcp sidecar:
+  # OpenAlex scholarly literature (mcp.tf openalex:
   # cyanheads/openalex-mcp-server 0.11.1, loopback). api.openalex.org with the
   # openalex.api_key account key;
   # all 5 tools are read-only, so no allowlist. Only the daimyo-orion key's
   # scope includes it.
   openalex:
-    url: "http://localhost:8014/mcp"
+    url: "http://openalex.mcp.svc.cluster.local:8014/mcp"
   # Anna's Archive (SokolskyNikita/annas-mcp v0.8.2 behind mcp-proxy, loopback).
-  # Membership key stays in the sidecar; downloads land on its NFS HDD PVC.
+  # Membership key stays in the server; downloads land on its NFS HDD PVC.
   # Only the daimyo-orion key's scope includes it. Downloads spend the daily
   # allowance, so Orion's grant asks before either download tool.
   annas:
-    url: "http://localhost:8016/mcp"
+    url: "http://annas.mcp.svc.cluster.local:8016/mcp"
     allowed_tools:
       - book_search
       - article_search
       - book_download
       - article_download
-  # Your Spotify listening history (litellm.tf yourspotify-mcp sidecar:
+  # Your Spotify listening history (mcp.tf yourspotify:
   # pentafive/your-spotify-mcp 9e0e606 behind supergateway, loopback), with
   # Your Spotify's public token. The allowlist keeps the 13 read tools; it
   # drops the account writes (update_user_settings, rename_account,
@@ -1359,7 +1357,7 @@ mcp_servers:
   # which needs a logged-in web session. Only the daimyo-orion key's scope
   # includes it.
   yourspotify:
-    url: "http://localhost:8015/mcp"
+    url: "http://yourspotify.mcp.svc.cluster.local:8015/mcp"
     allowed_tools:
       - get_track_stats
       - get_top_tracks
@@ -1374,14 +1372,14 @@ mcp_servers:
       - get_discovery_insights
       - compare_listening_periods
       - export_listening_data
-  # Ticketmaster Discovery API v2 (litellm.tf ticketmaster-mcp sidecar,
+  # Ticketmaster Discovery API v2 (mcp.tf ticketmaster,
   # sourabhmadur/ticketmaster-mcp bc3367d behind mcp-proxy, loopback). All 6
   # tools are read-only GETs (event/attraction/venue search and details), so
   # no allowlist. The consumer key comes from SOPS ticketmaster.api_key via the
-  # sidecar env, never a tool argument. Only the daimyo-orion key's scope
+  # server's env, never a tool argument. Only the daimyo-orion key's scope
   # includes it.
   ticketmaster:
-    url: "http://localhost:8012/mcp"
+    url: "http://ticketmaster.mcp.svc.cluster.local:8012/mcp"
   # Shop (hosted, https://mcp.shop.com/, root path: /mcp 404s). It speaks MCP
   # 2026-07-28 and opens with server/discover; LiteLLM's default `initialize`
   # handshake is refused, so the version is pinned. Each call is one stateless
@@ -1408,14 +1406,14 @@ mcp_servers:
     # Public OAuth client registered for this login. Pin it so token refresh
     # still identifies the client after a LiteLLM restart; no client secret.
     client_id: "mcp_899a546eb01c1da7e4f3b7f4e1840747"
-  # qBittorrent (litellm.tf qbittorrent-mcp sidecar, qbittorrent-mcp-rs): SSE
+  # qBittorrent (mcp.tf qbittorrent, qbittorrent-mcp-rs): SSE
   # only. Granted to the `rogue` agent through the daimyo-orion key
   # (register_litellm_virtual_keys.yml, orion_agent_tools.tf); not in the
   # OpenWebUI key's list (multi-user). Not exposed: shutdown_app,
   # set_app_preferences (autorun programs, WebUI auth, save paths) and
   # install_search_plugin (runs downloaded Python inside the qBittorrent pod).
   qbittorrent:
-    url: "http://localhost:3000/sse"
+    url: "http://qbittorrent.mcp.svc.cluster.local:3000/sse"
     transport: sse
     auth_type: bearer_token
     auth_value: "${qbittorrent_mcp_token}"
@@ -1534,5 +1532,5 @@ mcp_servers:
     auth_value: "${x_bridge_mcp_token}"
 %{ if google_maps_enabled ~}
   google_maps:
-    url: "http://localhost:8004/mcp"
+    url: "http://google-maps.mcp.svc.cluster.local:8004/mcp"
 %{ endif ~}
