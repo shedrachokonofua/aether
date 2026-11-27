@@ -321,8 +321,10 @@ locals {
       "daimyo/orion-molecule" = ["*"]
       # orion.tf: dev reads the homelab's telemetry, rogue runs on an external
       # model and gets the home qBittorrent and nothing else.
-      "daimyo/dev"      = ["clickstack"]
-      "daimyo/rogue"    = ["qbittorrent"]
+      "daimyo/dev"   = ["clickstack"]
+      "daimyo/rogue" = ["qbittorrent"]
+      # so/topaz: CI job records and runner placement via clickstack_sql.
+      "daimyo/topaz"    = ["clickstack"]
       "keycloak/shdrch" = ["*"]
     }
     # Whoever may sign in to OpenWebUI (OAUTH_ALLOWED_ROLES, openwebui.tf)
