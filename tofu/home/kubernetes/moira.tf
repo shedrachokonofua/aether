@@ -447,6 +447,17 @@ resource "kubernetes_deployment_v1" "moira_poller" {
             }
           }
 
+          # Seven30's own Z.AI Coding Plan (provider zai-seven30), polled on its own key.
+          env {
+            name = "ZAI_SEVEN30_API_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret_v1.litellm_env.metadata[0].name
+                key  = "ZAI_SEVEN30_API_KEY"
+              }
+            }
+          }
+
           env {
             name = "KIMI_API_KEY"
             value_from {

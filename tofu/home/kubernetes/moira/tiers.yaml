@@ -25,6 +25,7 @@ effort_defaults:
   qwen3.8-max: xhigh
   deepseek-v4.1-flash: high   # low/high/max; high verified on Ollama Cloud, Command Code and Go 2026-11-26
   glm-5.4: max
+  glm-5.3: max                # seven30/glm-5.3; only max is AA-scored (32)
   glm-5.3-flash: max
   gpt-6-luna: high
 
@@ -77,6 +78,10 @@ tiers:
       opencode-go/deepseek-v4.1-flash: max
       zai/glm-5.4: max
       xiaomi/mimo-v2.6-pro: default
+      # Seven30's own Z.AI Coding Plan (co-founder's key, added 2026-11-27):
+      # GLM-5.3 max scores 32. LiteLLM runs one request at a time on it, so
+      # a busy slot answers 429 and the request moves to Moira's fallbacks.
+      seven30/glm-5.3: max
   flash:
     min: 25
     max: 29
@@ -131,6 +136,7 @@ providers:                  # model-name prefix -> provider id + quota source
   - { prefix: "clinepass/",    id: clinepass-credits, quota: { kind: endpoint } }
   - { prefix: "kimi/",         id: kimi,         quota: { kind: endpoint } }
   - { prefix: "zai/",          id: zai,          quota: { kind: endpoint } }
+  - { prefix: "seven30/",      id: zai-seven30,  quota: { kind: endpoint } }
   - { prefix: "commandcode/",  id: commandcode,  quota: { kind: endpoint } }
   # Free (`:free` / $0) legs: no plan quota to track, so `none`. They rank
   # after providers with known quota (no windows -> freshness "unknown"), i.e.

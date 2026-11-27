@@ -296,10 +296,9 @@ model_list:
       litellm_credential_name: zai_credential
 
   # Seven30's own Z.AI coding plan (the co-founder's key, the one Seven30's
-  # Hermes uses; added 2026-11-22). Only for Seven30's agents: this name is in
-  # no router/ pool and no Moira tier, so a caller gets it only by naming it.
-  # That is a convention, not a lock: daimyo mints per-task keys with no org
-  # on them, and keys set to all models can name any model.
+  # Hermes uses; added 2026-11-22). A moira/balanced member since 2026-11-27
+  # (provider zai-seven30 in moira/tiers.yaml, polled on its own key), so
+  # every caller of that tier can be routed here, not only Seven30's agents.
   # One request at a time on the key. LiteLLM caps concurrency per model
   # entry (max_parallel_requests), not per provider key, so the key has
   # exactly one entry; add no second model on this credential without a cap
