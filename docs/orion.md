@@ -17,10 +17,13 @@ Run every command from the Aether root inside `nix develop --command`, after
 
 The release procedure (Coder gate, fast-forward pushes, CI artifacts, image
 pre-pull) is in the Orion repo's README, "Normal releases after adoption".
-Aether's part is the pin: change only `orion_release` in
-[`orion_release.tf`](../tofu/home/kubernetes/orion_release.tf) (image tag and
-chart version `0.1.0-g<sha>` both derive from it), then save, review and apply
-a targeted plan:
+The app image is not pinned: the Deployment runs `main:latest` and Keel
+(`keel.tf`, 5 s poll) rolls it as soon as CI pushes a new digest. Aether's pin
+covers the chart only (Deployment shape, Agents, prompts, grants,
+`orion-skills`): when a main commit changes the chart, change only
+`orion_release` in
+[`orion_release.tf`](../tofu/home/kubernetes/orion_release.tf) (chart version
+`0.1.0-g<sha>`), then save, review and apply a targeted plan:
 
 ```bash
 nix develop --command bash -c 'export VAULT_ADDR=https://bao.home.shdr.ch VAULT_TOKEN=$(cat ~/.aether-toolbox/bao/token); tofu -chdir=tofu plan -input=false -lock-timeout=120s -target=module.home.module.kubernetes.helm_release.orion -out=/tmp/orion-release.plan'
@@ -29,13 +32,17 @@ nix develop --command bash -c 'export VAULT_ADDR=https://bao.home.shdr.ch VAULT_
 ```
 
 - The plan may only update `helm_release.orion` in place.
+- Keel rolls the image ahead of the chart, so between a push and the pin bump
+  the new app runs against the previous release's Agents.
 - An image change causes one Recreate rollout. Secret changes in aether change
   `envChecksum` and restart Orion too.
 - Orion images are amd64-only: the pre-pull DaemonSet needs
   `nodeSelector: {kubernetes.io/arch: amd64}`, or ARM nodes fail its init
   command with `exec format error`.
-- Rollback: `helm rollback orion <revision> -n orion --wait` reverts app and
-  Agents together; pin the matching SHA here before the next apply.
+- Rollback: `helm rollback orion <revision> -n orion --wait` reverts the
+  Agents only; the image stays on `main:latest`, so an app rollback means
+  re-pushing the previous build as `main:latest`. Pin the matching SHA here
+  before the next apply.
 - The release still has `atomic = false` and `cleanup_on_fail = false` from the
   Helm adoption; never uninstall/reinstall to fix a failed release. The
   `removed` blocks in `orion.tf` are adoption history.

@@ -2,7 +2,9 @@
 # Orion — personal AI dashboard / start page (home.shdr.ch)
 # =============================================================================
 # SvelteKit (adapter-node) + Drizzle on Postgres. Image is autobuilt by GitLab
-# CI from the orion repo (registry.gitlab.home.shdr.ch/so/orion/<branch>).
+# CI from the orion repo (registry.gitlab.home.shdr.ch/so/orion/<branch>); the
+# Deployment runs main:latest and Keel rolls it on every new digest (the
+# keel.sh/* annotations ride in orion_chart_values.json deploymentMetadata).
 # Postgres is a CNPG cluster (orion-cnpg) with barman backups via
 # cnpg_backup_targets["orion"]; Orion runs its Drizzle migrations at startup
 # under an advisory lock, so rolling deploys are safe.
@@ -392,7 +394,7 @@ resource "helm_release" "orion" {
   cleanup_on_fail     = false
 
   values = [yamlencode(merge(local.orion_chart_values, {
-    image       = { repository = "registry.gitlab.home.shdr.ch/so/orion/main", tag = local.orion_release }
+    image       = { repository = "registry.gitlab.home.shdr.ch/so/orion/main", tag = "latest" }
     envChecksum = nonsensitive(sha256(jsonencode(local.orion_env)))
   }))]
 

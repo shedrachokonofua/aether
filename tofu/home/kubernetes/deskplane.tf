@@ -20,13 +20,14 @@ locals {
   # persistent sessions park Stopped instead of Failed, and persistent
   # sessions with a home PVC stop after 4 idle hours
   # (sessions.persistentIdleStopSeconds). Built on 4b722ee4 (Android emulator
-  # sessions, deskplane MR !3). The MCP image carries the same tag; the
-  # android image is 0112576e (image-only changes on top: the phone's screen
-  # alone, no desktop, Android's first boot baked in at build time). The
-  # registry keeps a limited number of tags (666c1c2e was dropped on
-  # 2026-11-21); pin a tag the registry still has.
+  # sessions, deskplane MR !3). The android image is 0112576e (image-only
+  # changes on top: the phone's screen alone, no desktop, Android's first boot
+  # baked in at build time). The registry keeps a limited number of tags
+  # (666c1c2e was dropped on 2026-11-21); pin a chart tag the registry still
+  # has. The chart is pinned; the controller/serve and MCP images run :latest
+  # and Keel rolls each new digest (deskplane_keel below).
   deskplane_chart_version = "0.1.0-75d21d6d"
-  deskplane_image_tag     = "75d21d6d"
+  deskplane_image_tag     = "latest"
   # Session Pods are bare Pods: the namespace-tier priority defaults
   # (kyverno.tf) only mutate controller templates, so without this the
   # web engine's pool browsers ran at aether-sandbox (0) and were preempted
@@ -594,14 +595,11 @@ resource "helm_release" "deskplane" {
       resources = {
         requests = { cpu = "100m" }
       }
-      # CI path-filters build:image:mcp to mcp/**, so this tag only advances
-      # on commits that touch the MCP. Bumping it in lockstep with the
-      # control-plane SHA pins a tag that was never built: the pod cannot
-      # pull, never goes Ready, and the atomic release rolls back on timeout.
-      # 75d21d6d: the newest MCP build (a workload issuer's `clients`).
+      # CI path-filters build:image:mcp to mcp/**, so mcp:latest only advances
+      # on commits that touch the MCP; Keel rolls it then (deskplane_keel).
       image = {
         repository = "${local.deskplane_registry_image}/mcp"
-        tag        = "75d21d6d"
+        tag        = "latest"
       }
       # The web secret reaches the MCP as env vars, which only load at pod
       # start; this label rolls the pod when the proxy list changes.
@@ -783,14 +781,15 @@ resource "kubernetes_manifest" "deskplane_serve_session_control" {
   }
 }
 
-# Keel opt-in for the chart-produced Deployments (controller + serve both run
-# the so/deskplane image). The chart exposes no annotation/label passthrough, so
+# Keel opt-in for the chart-produced Deployments (controller + serve run the
+# so/deskplane image, mcp runs so/deskplane/mcp; all on :latest). The chart
+# exposes no annotation/label passthrough, so
 # attach keel.sh/* config to the live Deployment metadata via server-side apply.
 # The field manager owns only these keys, so Keel's keel.sh/update-time +
 # kubernetes.io/change-cause writes never fight tofu. Registry auth reuses the
 # chart's imagePullSecret.
 resource "kubernetes_annotations" "deskplane_keel" {
-  for_each = toset(["deskplane-controller", "deskplane-serve"])
+  for_each = toset(["deskplane-controller", "deskplane-serve", "deskplane-mcp"])
 
   depends_on = [helm_release.deskplane]
 

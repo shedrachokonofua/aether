@@ -3,8 +3,9 @@
 # =============================================================================
 # Keel (keel.sh) watches Deployments carrying keel.sh/* annotations and
 # force-updates them when the digest behind a fixed tag (:latest) changes in the
-# private GitLab registry. Only OUR CI-built images opt in: orion,
-# the espn and finviz MCP servers, mnemo, deskplane and helios.
+# private GitLab registry. Only OUR CI-built images opt in: orion, helios,
+# minos, mnemo, deskplane (controller, serve, mcp), instacart-mcp, x-bridge
+# and the espn/finviz MCP servers.
 # Third-party :latest sidecars are excluded per-workload via
 # keel.sh/monitorContainers.
 #
@@ -13,10 +14,11 @@
 #   * On a new digest Keel patches the LIVE Deployment: it writes
 #     spec.template.metadata.annotations["keel.sh/update-time"] (the rollout
 #     trigger) and metadata.annotations["kubernetes.io/change-cause"]. Both are
-#     excluded via lifecycle.ignore_changes on every managed native Deployment
-#     (orion/litellm). Helm-managed Deployments (mnemo/deskplane) are
-#     opted in with kubernetes_annotations, whose field manager owns only the
-#     keel.sh/* keys, so Keel's writes never fight tofu.
+#     excluded via lifecycle.ignore_changes on every managed native Deployment.
+#     Helm-managed Deployments either carry keel.sh/* in chart values (orion)
+#     or are opted in with kubernetes_annotations (mnemo/deskplane), whose
+#     field manager owns only the keel.sh/* keys, so Keel's writes never fight
+#     tofu.
 #   * Registry auth for polling reuses each workload's existing imagePullSecret —
 #     Keel merges spec.template.spec.imagePullSecrets automatically, so no
 #     cluster-wide DOCKER_REGISTRY_CFG is required.
