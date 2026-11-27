@@ -10,7 +10,12 @@
 # Bao runtime fetch — nothing static, nothing in etcd).
 
 locals {
-  vigil_image = "registry.gitlab.home.shdr.ch/so/vigil@sha256:4aa4044bb46257162c8f6e39c9e0599160358bac1205001a638d4f90c88d7490"
+  # The multi-arch index that `latest` pointed at on 2026-11-27 (built
+  # 2026-07-25T19:29Z from vigil 0b397f9). The previous pin was an untagged
+  # manifest; the registry garbage-collected it and the pod sat in
+  # ImagePullBackOff from 2026-11-04. Pin only digests a tag still holds:
+  # if CI moves `latest`, re-pin before the old index is collected.
+  vigil_image = "registry.gitlab.home.shdr.ch/so/vigil@sha256:4525ea6b9db94c65cee5c80259e53af3cb1d16ee5fe58cffb849ce0caefa5149"
   vigil_ns    = module.namespace["cloud-audit"].name
 
   vigil_config_toml = <<-EOT
