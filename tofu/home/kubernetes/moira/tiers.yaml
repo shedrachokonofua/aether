@@ -69,10 +69,14 @@ tiers:
       claude/haiku-5-5: xhigh
       qwen-cloud/qwen3.8-max: xhigh
       ollama-cloud/deepseek-v4.1-flash: max
+      # Command Code and Go carry DeepSeek here instead of MiMo V2.6 Pro since
+      # 2026-11-26 (one member per provider): it scores 32 against 30, its
+      # cache reads cost $0.003/M on both, and Go allows it 100 a month
+      # against MiMo Pro's 15. MiMo Pro stays their cyber member.
+      commandcode/deepseek-v4.1-flash: max
+      opencode-go/deepseek-v4.1-flash: max
       zai/glm-5.4: max
       xiaomi/mimo-v2.6-pro: default
-      commandcode/mimo-v2.6-pro: default
-      opencode-go/mimo-v2.6-pro: default
   flash:
     min: 25
     max: 29

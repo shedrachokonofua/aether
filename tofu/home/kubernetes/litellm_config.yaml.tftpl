@@ -409,6 +409,17 @@ model_list:
       order: 2
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true}
 
+  # DeepSeek V4.1 Flash on the Command Code plan (boosted usage; cache reads
+  # $0.003/M). Probed direct 2026-11-26: parallel tool calls come back
+  # separately indexed and reasoning_effort is accepted, so it is passed.
+  - model_name: "commandcode/deepseek-v4.1-flash"
+    litellm_params:
+      model: "openai/deepseek/deepseek-v4.1-flash"
+      litellm_credential_name: commandcode_credential
+      use_chat_completions_api: true
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {mode: chat, max_input_tokens: 1000000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+
   # Ling 3.1 Flash (inclusionAI; AA Intelligence 41 -> moira/flash), free on
   # two routes. Command Code's `:free` variant does not draw on the GOAT plan's
   # weekly window but its upstream 429s intermittently (3/5 on 2026-10-06), so
@@ -543,6 +554,17 @@ model_list:
       extra_headers: *opencode_go_headers
       allowed_openai_params: ["reasoning_effort"]
     model_info: {mode: chat, max_input_tokens: 1048576, max_output_tokens: 131072, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
+  # DeepSeek V4.1 Flash on the Go plan (largest cheap allowance on Go; price
+  # doubles 01-04 and 06-10 UTC on weekdays). Probed direct 2026-11-26: tools
+  # and reasoning_effort (low/high/max) work.
+  - model_name: "opencode-go/deepseek-v4.1-flash"
+    litellm_params:
+      model: "openai/deepseek-v4.1-flash"
+      litellm_credential_name: opencode_go_credential
+      use_chat_completions_api: true
+      extra_headers: *opencode_go_headers
+      allowed_openai_params: ["reasoning_effort"]
+    model_info: {mode: chat, max_input_tokens: 1000000, max_output_tokens: 384000, supports_function_calling: true, supports_reasoning: true, supports_vision: true, supported_openai_params: *openai_reasoning_params}
   # Step 5 Preview free (StepFun launch promotion, reported as one week; added
   # 2026-10-10, remove once it errors). Go serves it with our own client
   # headers and without drawing the Go plan: it answered while Go's own models
