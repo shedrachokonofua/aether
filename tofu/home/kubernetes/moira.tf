@@ -14,7 +14,7 @@ locals {
   # 4ca6aec (moira main): GLM-5.4 scored at GLM-5.3's max (estimate) on
   # cfe0807 (members run at request effort, else tiers.yaml effort_defaults).
   # CI pipeline 18084 passed before this digest was selected.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:16365f87f1e333e4c71b84ca431f982e57173e01f4fc1a5e40c93e075b95ab0e"
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:78de787e6d1443552bb45b028ddbf993f80f3e1d6b4d3aa96bcbe86bab60859d"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }
