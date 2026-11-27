@@ -133,12 +133,6 @@ incident issues. Its `holmes` task soft-fails (`allowFailure: true` in
 `../inquest/flows/process-alert.yaml.tftpl`), so incidents get no RCA note.
 Restore `replicas` once that alert no longer routes to local-model RCA.
 
-Step Plan exposes only `step/step-5-preview` through the OpenAI-compatible
-`https://api.stepfun.ai/step_plan/v1` endpoint. The credential is stored as
-`litellm.step_api_key` in SOPS and injected as `STEP_API_KEY`. OMP and Colony
-virtual keys can select this model; their defaults are unchanged. The route
-has no PAYG or OpenRouter fallback.
-
 Kimi Coding exposes `kimi/k3` and `kimi/k3.1-pro` through the existing coding
 subscription credential. K3.1 Pro advertises a 1,048,576-token context and
 always thinks; accepted efforts are `low`, `high`, and `max`. Vision and a
@@ -408,7 +402,7 @@ Since LiteLLM 1.106, `openai/` deployments missing from its bundled model map
 forward `reasoning_effort` by default. The llama-swap legs (their IDs fix
 thinking) and the Command Code legs set
 `additional_drop_params: ["reasoning_effort"]` so they still never receive
-it. The Kimi, Qwen Cloud, Step, OpenCode Go, Xiaomi, CodeBuddy, Clinepass,
+it. The Kimi, Qwen Cloud, OpenCode Go, Xiaomi, CodeBuddy, Clinepass,
 ChatGPT, Muse bridge, SuperGrok, and Antigravity deployments set
 `allowed_openai_params: ["reasoning_effort"]`; they and the Ollama legs also
 declare `supported_openai_params` including `reasoning_effort`, and OMP sends
@@ -595,7 +589,6 @@ flowchart LR
         ZAI[Z.AI]
         QWEN[Qwen Cloud]
         OCGO[OpenCode Go]
-        STEP[Step Plan]
     end
 
     subgraph MCP["MCP Tools"]
@@ -609,7 +602,7 @@ flowchart LR
 
     OWUI & API --> LLM
     LLM --> LS & RR
-    LLM --> OAI & ZAI & QWEN & OCGO & STEP
+    LLM --> OAI & ZAI & QWEN & OCGO
     LLM --> TIME & DP & GMAPS & TMDB & COMFY & POP
 
     style K8s fill:#d4f0e7,stroke:#6ac4a0
@@ -893,12 +886,11 @@ Command Code and OpenCode Go; GPT-6 Luna; and GLM-5.3 Flash on Z.AI.
 Kimi and GLM Flash use the verified max operating profiles, without claiming
 separate max-effort cyber measurements for their native/default AA rows.
 Historical K3/Spark rows and the invalid GPT-6 Sol → GPT-6.1 Sol score mapping
-are removed. Step 5 Preview passes the benchmark gate but remains outside
-membership after its free gateway route failed the probe. Unverified
+are removed. Unverified
 Sol/Terra, Muse Wonder and Gemini 4 cyber results are not borrowed from their
 general intelligence scores.
 
-`gpt-6-astra` and the `aether`, expired `step`, and disabled `clinepass`
+`gpt-6-astra` and the `aether` and disabled `clinepass`
 providers are excluded from score-based tiers. Unscored models are not tier
 candidates. Named groups have their own explicit membership; this preserves
 the unscored local computer-use fallback.
@@ -935,8 +927,8 @@ entry point (gateway or in-cluster Service DNS).
 
 A second hook in the same file, `deployment_adapter`, adapts every deployment
 attempt from the selected deployment's `model_info`: `supports_forced_tool_choice:
-false` (MiMo V2.6 Pro and Step 5 Preview, both unreliable with a named forced
-`tool_choice` in the 2026-09-25 probes) softens a forced `tool_choice` to
+false` (MiMo V2.6 Pro, unreliable with a named forced
+`tool_choice` in the 2026-09-25 probe) softens a forced `tool_choice` to
 `"auto"`, and `max_output_tokens` clamps `max_tokens`, `max_completion_tokens`
 and `max_output_tokens` to the deployment's cap. Each change logs one INFO
 line; a fallback attempt still sees the client's original request. Proved by
@@ -954,7 +946,7 @@ inside the Aether Nix shell.
 Quota sources per provider: Z.AI, Kimi, Command Code, OpenCode Go, Clinepass
 and Ollama Cloud are polled at their quota endpoints by `moira-poller`; Muse,
 Antigravity and SuperGrok windows come from the in-cluster bridges' `/usage`;
-Xiaomi, Step, Qwen Cloud and CodeBuddy are counted locally from LiteLLM spend
+Xiaomi, Qwen Cloud and CodeBuddy are counted locally from LiteLLM spend
 logs; ChatGPT windows come from the `moira-chatgpt-usage` sidecar in the
 LiteLLM pod, which reads the subscription OAuth `auth.json` from the
 `litellm-chatgpt-auth` PVC and serves `/usage` to the poller on `:9090`.
@@ -968,7 +960,7 @@ Xiaomi's Standard annual pool is 132B credits, valid through 2027-11-03
 Qwen Cloud's 180k-credit 30-day cycle and CodeBuddy Pro's 1000-credit monthly
 cycle are configured and calibrated from their provider readings. Qwen and
 CodeBuddy rates are recorded in `tiers.yaml`; they are not unknown placeholders.
-Step's paid plan remains excluded after its subscription ended. Ollama Cloud
+Ollama Cloud
 is polled at its own quota endpoint.
 Moira's state lives in the `moira` database on `litellm-cnpg` (managed role
 `moira`, which also reads LiteLLM spend data for local credit accounting). `moira.decision`

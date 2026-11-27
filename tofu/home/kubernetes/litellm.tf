@@ -51,7 +51,6 @@ resource "kubernetes_secret_v1" "litellm_env" {
     CLINEPASS_API_KEY     = var.secrets["litellm.clinepass_api_key"]
     KIMI_API_KEY          = var.secrets["litellm.kimi_api_key"]
     QWEN_CLOUD_API_KEY    = var.secrets["litellm.qwen_cloud_api_key"]
-    STEP_API_KEY          = var.secrets["litellm.step_api_key"]
     ZAI_API_KEY           = var.secrets["litellm.zai_api_key"]
     ZAI_SEVEN30_API_KEY   = var.secrets["litellm.zai_seven30_api_key"]
     COMMANDCODE_API_KEY   = var.secrets["litellm.commandcode_api_key"]
@@ -388,16 +387,6 @@ resource "kubernetes_deployment_v1" "litellm" {
               secret_key_ref {
                 name = kubernetes_secret_v1.litellm_env.metadata[0].name
                 key  = "QWEN_CLOUD_API_KEY"
-              }
-            }
-          }
-
-          env {
-            name = "STEP_API_KEY"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret_v1.litellm_env.metadata[0].name
-                key  = "STEP_API_KEY"
               }
             }
           }

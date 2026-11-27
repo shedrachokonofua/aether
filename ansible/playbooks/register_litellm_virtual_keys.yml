@@ -24,7 +24,6 @@
         - antigravity/gemini-4-hydrogen
         - antigravity/gemini-4-argon
         - supergrok/grok-4.7
-        - step/step-5-preview
         - chatgpt/gpt-6-astra
         - chatgpt/gpt-6.2-sol
         - chatgpt/gpt-6.1-terra
@@ -100,7 +99,6 @@
         - antigravity/gemini-4-neon
         - antigravity/gemini-4-hydrogen
         - supergrok/grok-4.7
-        - step/step-5-preview
         - chatgpt/gpt-6-astra
         - chatgpt/gpt-6.2-sol
         - chatgpt/gpt-6.1-terra

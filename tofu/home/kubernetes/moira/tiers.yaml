@@ -30,7 +30,7 @@ effort_defaults:
 
 # Moira tiers / providers / plans / groups.
 #
-# Local-count plans (xiaomi, step, qwen-cloud, codebuddy) need the operator's
+# Local-count plans (xiaomi, qwen-cloud, codebuddy) need the operator's
 # purchased tier (total_credits) and renewal date (cycle.anchor); a plan with
 # either null produces no window.
 
@@ -89,7 +89,7 @@ tiers:
       opencode-go/mimo-v2.6-flash: default
       # Suspended with Antigravity (see frontier): antigravity/gemini-4-hydrogen: low
   # AA Cyber Index v1, checked 2026-10-30: one representative per quota pool.
-  # Zero safety blocks across all three evaluations; Step's failed route stays out.
+  # Zero safety blocks across all three evaluations.
   cyber:
     index: cyber
     min: 40
@@ -111,14 +111,12 @@ exclude:
   # adapter, which had merged parallel tool calls ("Extra data"). Verified
   # with a 7-case matrix per model (litellm_config.yaml.tftpl Ollama block).
   # aether = local llama-swap (may be enabled later).
-  # step: the Flash Mini plan ended 2026-10-09; every call since answers 400
-  # "you have no active step plan subscription" (0 successes, 2026-10-10).
   # clinepass: both Cline Pass legs fail through LiteLLM (glm-5.3-flash 500
   # "empty response content", qwen3.8-max 404 / no `choices`; 1 success since
   # 2026-10-06) while its quota still reads 31% weekly, so Moira ranked it
   # first for moira/strong and agent turns died (2026-10-10). Re-enable each
   # once a direct call through LiteLLM succeeds.
-  providers: [aether, step, clinepass]
+  providers: [aether, clinepass]
 
 providers:                  # model-name prefix -> provider id + quota source
   - { prefix: "chatgpt/",      id: chatgpt,      quota: { kind: sidecar } }
@@ -140,14 +138,10 @@ providers:                  # model-name prefix -> provider id + quota source
   - { prefix: "commandcode-free/", id: commandcode-free, quota: { kind: none } }
   - { prefix: "openrouter/",   id: openrouter,   quota: { kind: none } }
   - { prefix: "opencode-go/",  id: opencode-go,  quota: { kind: endpoint } }
-  # Go's free Step 5 does not draw the Go plan (it answered while Go was at its
-  # monthly limit), so the Go windows must not block it.
-  - { prefix: "opencode-go/",  upstream_prefix: "openai/step-5-preview-free", id: opencode-free, quota: { kind: none } }
   - { prefix: "ollama-cloud/", id: ollama-cloud, quota: { kind: endpoint } }
   - { prefix: "antigravity/",  id: antigravity,  quota: { kind: bridge, bridge: antigravity } }
   - { prefix: "supergrok/",    id: supergrok,    quota: { kind: bridge, bridge: grok } }
   - { prefix: "xiaomi/",       id: xiaomi,       quota: { kind: local, plan: xiaomi } }
-  - { prefix: "step/",         id: step,         quota: { kind: local, plan: step } }
   - { prefix: "qwen-cloud/",   id: qwen-cloud,   quota: { kind: local, plan: qwen-cloud } }
   # CodeBuddy 400s non-streaming chat (11101); verified 2026-10-08.
   - { prefix: "codebuddy/",    id: codebuddy,    quota: { kind: local, plan: codebuddy }, chat_requires_stream: true }
@@ -193,15 +187,6 @@ plans:                      # local-count providers
       mimo-v2.6-pro:   { cached: 2.5, input: 300, output: 600 }
       mimo-v2.6-flash: { cached: 2,   input: 100, output: 200 }
     calibration: { used: 36742997, at: "2026-11-07T00:44:29Z" }   # operator console screenshot
-  step:
-    # Flash Mini: 400M credits/month, valid until 2026-10-09 (end of day taken
-    # as UTC). Credits = PAYG USD x 7M (platform.stepfun.ai step-plan overview);
-    # step-5-preview PAYG $1.00 / $0.05 cached / $2.70 out per 1M tokens.
-    cycle: { anchor: "2026-09-10T00:00:00Z", period: month }
-    total_credits: 400000000
-    rates:
-      step-5-preview: { cached: 0.35, input: 7, output: 18.9 }
-    calibration: null
   qwen-cloud:
     # Pro individual: 180,000 credits per 30-day cycle; reset 2026-10-30
     # 12:00 EDT = 16:00Z (usage API per1MonthResetTime). Rates measured
