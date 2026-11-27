@@ -174,19 +174,43 @@ abandon/reap-stale close orphan ClickHouse scan_runs rows.")
     (println (json/generate-string body))
     body))
 
+;; The lock is a file created atomically and stamped with the owner's PID.
+;; A worker that is killed (OOM, reboot, SIGKILL) never reaches its `finally`,
+;; so a bare existence check left the lock held forever and every later run
+;; exited 3. A lock is stale when its PID is no longer an aether-scan process,
+;; or when it carries no PID (pre-stamp format, or a crash between create and
+;; stamp) and is older than the longest stage.
+(def ^:private unstamped-lock-max-age-ms (* 6 60 60 1000))
+
+(defn- lock-stale? [lock-file]
+  (let [f (io/file (str lock-file))]
+    (and (.exists f)
+         (let [pid (try (parse-long (str/trim (slurp f))) (catch Exception _ nil))]
+           (if pid
+             (let [cmdline (io/file (str "/proc/" pid "/cmdline"))]
+               (not (and (.exists cmdline)
+                         (str/includes? (slurp cmdline) "aether-scan"))))
+             (> (- (System/currentTimeMillis) (.lastModified f))
+                unstamped-lock-max-age-ms))))))
+
 (defn with-lock! [{:keys [state_dir lock_file]} f]
   (fs/create-dirs state_dir)
   ;; babashka-unwrapped does not expose FileChannel/FileLock; use atomic create.
   (let [lock (io/file (str lock_file))]
+    (when (lock-stale? lock)
+      (binding [*out* *err*]
+        (println "reclaiming stale scan lock" (str lock)))
+      (fs/delete-if-exists lock))
     (when-not (.createNewFile lock)
       (die! 3 "another scan holds the exclusive lock"))
     (try
+      (spit lock (str (.pid (java.lang.ProcessHandle/current)) "\n"))
       (f)
       (finally
         (fs/delete-if-exists lock)))))
 
 (defn lock-held? [{:keys [lock_file]}]
-  (fs/exists? lock_file))
+  (and (fs/exists? lock_file) (not (lock-stale? lock_file))))
 
 (defn clickhouse-password [{:keys [clickhouse_password_file]}]
   (when (and clickhouse_password_file (fs/exists? clickhouse_password_file))
