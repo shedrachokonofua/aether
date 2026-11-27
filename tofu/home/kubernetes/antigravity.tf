@@ -137,7 +137,7 @@ resource "kubernetes_deployment_v1" "antigravity" {
           env {
             # Concurrent turns (one ACP server process each, ~450 MB at peak).
             name  = "ANTIGRAVITY_MAX_PROCESSES"
-            value = "4"
+            value = "8"
           }
           env {
             name = "ANTIGRAVITY_CREDENTIALS"
@@ -195,7 +195,7 @@ resource "kubernetes_deployment_v1" "antigravity" {
 
           resources {
             requests = { cpu = "100m", memory = "512Mi" }
-            limits   = { cpu = "2", memory = "3Gi" }
+            limits   = { cpu = "2", memory = "5Gi" }
           }
         }
 
