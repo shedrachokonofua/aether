@@ -50,6 +50,13 @@ contactPoints:
         settings:
           url: "https://apprise.home.shdr.ch/notify/aether?tags=quiet&:message=body"
           httpMethod: POST
+          # Compact body. The default lists every label and annotation of every
+          # alert; a 100-alert group exceeded the Matrix event size (error 413)
+          # and the whole digest was dropped, twice a day.
+          message: |-
+            {{ len .Alerts.Firing }} firing, {{ len .Alerts.Resolved }} resolved
+            {{ range .Alerts }}- [{{ .Status }}] {{ .Labels.alertname }}{{ if .Annotations.summary }}: {{ .Annotations.summary }}{{ end }}
+            {{ end }}
         disableResolveMessage: false
       - uid: inquest-digest
         type: webhook
@@ -66,6 +73,13 @@ contactPoints:
         settings:
           url: "https://apprise.home.shdr.ch/notify/aether?tags=security&:message=body"
           httpMethod: POST
+          # Compact body. The default lists every label and annotation of every
+          # alert; a 100-alert group exceeded the Matrix event size (error 413)
+          # and the whole digest was dropped, twice a day.
+          message: |-
+            {{ len .Alerts.Firing }} firing, {{ len .Alerts.Resolved }} resolved
+            {{ range .Alerts }}- [{{ .Status }}] {{ .Labels.alertname }}{{ if .Annotations.summary }}: {{ .Annotations.summary }}{{ end }}
+            {{ end }}
         disableResolveMessage: false
       - uid: inquest-security
         type: webhook

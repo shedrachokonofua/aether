@@ -1,10 +1,10 @@
 # =============================================================================
 # Cloud-audit (vigil) alerting
 # =============================================================================
-# All rules ship severity=warning under soak-then-promote (PLAN.md §8):
-# 14 days clean, then a single reviewed commit flips the page-class rules to
-# critical. The emitted-data contract these match against is
-# vigil/docs/schema.md — envelopes, not `raw`.
+# Rules ship severity=warning; the page-class ones were promoted to critical
+# on 2026-11-27: the three feed/loop-absent rules, root or no-MFA console
+# login, and KMS unseal-key tamper. The rest stay warning. The emitted-data contract these
+# match against is vigil/docs/schema.md — envelopes, not `raw`.
 #
 # ClickHouse port: vigil audit events land in otel.otel_logs with
 # ServiceName='vigil' and ResourceAttributes['provider'|'collector'|'domain']
@@ -131,7 +131,7 @@ groups:
     execErrState: Alerting
     for: 0s
     labels:
-      severity: warning
+      severity: critical
       domain: security
     annotations:
       summary: vigil collector {{ $labels.collector }} silent >30m
@@ -187,7 +187,7 @@ groups:
     execErrState: Alerting
     for: 0s
     labels:
-      severity: warning
+      severity: critical
       domain: security
     annotations:
       summary: vigil snapshot collector {{ $labels.collector }} silent >26h
@@ -234,7 +234,7 @@ groups:
     execErrState: Alerting
     for: 0s
     labels:
-      severity: warning
+      severity: critical
       domain: security
     annotations:
       summary: vigil orchestrator loop silent >6m
@@ -281,7 +281,7 @@ groups:
     execErrState: Error
     for: 0s
     labels:
-      severity: warning
+      severity: critical
       domain: security
     annotations:
       summary: AWS console login as root or without MFA
@@ -375,7 +375,7 @@ groups:
     execErrState: Error
     for: 0s
     labels:
-      severity: warning
+      severity: critical
       domain: security
     annotations:
       summary: openbao-auto-unseal KMS key tamper or denied Decrypt
