@@ -15,12 +15,12 @@
 # cloud fallback): aether/qwen3.8-flash-next, aether/qwen3.8-flash-next:think
 # and aether/qwen3-embedding:0.6b, on a scoped virtual key.
 #
-# DEPLOYMENT PIN: CI (so/pharos .gitlab-ci.yml chart-publish) publishes chart
-# `pharos` at version 0.1.0-g<8-char commit sha> to
-# oci://registry.gitlab.home.shdr.ch/so/pharos, and the published chart's
-# values pin the image to the same sha. Set pharos_chart_version below to that
-# version after the sibling repo publishes; the placeholder is rejected by the
-# release precondition so it cannot be applied by accident.
+# DEPLOYMENT PIN: CI (so/pharos .gitlab-ci.yml) publishes the image as
+# `:<8-char sha>` + `:latest` and chart `pharos` at `0.1.0-g<8-char sha>` to
+# oci://registry.gitlab.home.shdr.ch/so/pharos. `pharos_chart_version` below
+# pins the Deployment template/shape only; the container image tracks `:latest`
+# with pullPolicy Always and is force-updated by Keel on every push to main.
+# Bump `pharos_chart_version` only when chart templates change.
 #
 # PREREQUISITES outside this file (parent-owned, see completion notes):
 #   - SOPS key litellm.virtual_keys.pharos (secrets/secrets.yml), registered by
@@ -38,7 +38,9 @@ locals {
     "app.kubernetes.io/part-of" = "pharos"
   }
 
-  # Published by so/pharos CI from main (80d47a9b): image and chart pinned to the same commit.
+  # Chart version pins the Deployment template/shape only; the container image
+  # below tracks :latest (retained by GitLab registry cleanup) and is watched by
+  # Keel. Bump only when chart templates change.
   pharos_chart_version = "0.1.0-g80d47a9b"
 
   # In-cluster LiteLLM service (same endpoint deskplane and nextcloud use);
@@ -270,6 +272,10 @@ resource "helm_release" "pharos" {
   }
 
   values = [yamlencode({
+    image = {
+      tag        = "latest"
+      pullPolicy = "Always"
+    }
     existingSecret = kubernetes_secret_v1.pharos_env.metadata[0].name
     imagePullSecrets = [{
       name = kubernetes_secret_v1.pharos_registry.metadata[0].name
@@ -277,9 +283,13 @@ resource "helm_release" "pharos" {
     persistence = {
       existingClaim = kubernetes_persistent_volume_claim_v1.pharos_data.metadata[0].name
     }
-    # Secret rotation (session/MCP/OIDC/LiteLLM key) restarts the pod.
+    # Secret rotation (session/MCP/OIDC/LiteLLM key) restarts the pod;
+    # Keel polls :latest and rolls the Deployment on every new digest.
     deploymentAnnotations = {
       "reloader.stakater.com/auto" = "true"
+      "keel.sh/policy"             = "force"
+      "keel.sh/trigger"            = "poll"
+      "keel.sh/matchTag"           = "true"
     }
     config = {
       baseUrl         = local.pharos_base_url

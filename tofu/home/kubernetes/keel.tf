@@ -4,7 +4,7 @@
 # Keel (keel.sh) watches Deployments and CronJobs carrying keel.sh/* annotations
 # and force-updates them when the digest behind a fixed tag (:latest) changes in
 # the private GitLab registry. Only OUR CI-built images opt in: orion, helios,
-# minos, mnemo, deskplane (controller, serve, mcp), frame-gallery,
+# minos, mnemo, deskplane (controller, serve, mcp), frame-gallery, pharos,
 # instacart-mcp, x-bridge, antigravity-bridge and the espn/finviz MCP servers.
 # Third-party :latest sidecars are excluded per-workload via
 # keel.sh/monitorContainers.
@@ -15,7 +15,7 @@
 #     spec.template.metadata.annotations["keel.sh/update-time"] (the rollout
 #     trigger) and metadata.annotations["kubernetes.io/change-cause"]. Both are
 #     excluded via lifecycle.ignore_changes on every managed native Deployment.
-#     Helm-managed workloads either carry keel.sh/* in chart values (orion)
+#     Helm-managed workloads either carry keel.sh/* in chart values (orion, pharos)
 #     or are opted in with kubernetes_annotations (mnemo/deskplane/frame-gallery),
 #     whose field manager owns only the keel.sh/* keys, so Keel's writes never
 #     fight tofu.

@@ -167,16 +167,17 @@ Upgrade side effects observed:
 Keel (`tofu/home/kubernetes/keel.tf`, namespace `keel`) force-updates a curated
 set of workloads when the digest behind their `:latest` tag changes in the
 private GitLab registry. Only our own CI-built images opt in: orion, helios,
-minos, mnemo, deskplane (controller, serve, mcp), frame-gallery, instacart-mcp,
-x-bridge and the `espn`/`finviz` MCP servers. Third-party `:latest` sidecars
-are excluded via `keel.sh/monitorContainers`.
+minos, mnemo, deskplane (controller, serve, mcp), frame-gallery, pharos,
+instacart-mcp, x-bridge and the `espn`/`finviz` MCP servers. Third-party
+`:latest` sidecars are excluded via `keel.sh/monitorContainers`.
 
 Opt-in is per-workload metadata — `keel.sh/policy=force`, `keel.sh/trigger=poll`,
-`keel.sh/matchTag=true`. Native Deployments carry the annotations inline; orion's
-chart takes them through `deploymentMetadata` in its values;
-mnemo/deskplane/frame-gallery get them via `kubernetes_annotations` because
-their charts expose no annotation passthrough. Orion, deskplane and
-frame-gallery pin only their chart versions; their images run `:latest`.
+`keel.sh/matchTag=true`. Native Deployments carry the annotations inline; orion
+and pharos charts take them through values (`deploymentMetadata` /
+`deploymentAnnotations`); mnemo/deskplane/frame-gallery get them via
+`kubernetes_annotations` because their charts expose no annotation passthrough.
+Orion, deskplane, frame-gallery and pharos pin only their chart versions; their
+images run `:latest`.
 Keel polls every 5 seconds using each workload's existing image pull secret, so no
 cluster-wide registry credential is configured.
 
