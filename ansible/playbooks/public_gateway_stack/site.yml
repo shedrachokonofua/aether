@@ -68,7 +68,7 @@
       - saddr: [10.2.0.10]
         daddr: 10.0.2.2
         proto: tcp
-        ports: [443, 9443]
+        ports: [9443] # matches VyOS CLOUD-to-TRUSTED rule 30
       - saddr: [10.0.0.0/16, 10.1.0.0/16, 10.254.0.2/32]
         daddr: 10.3.0.10
         proto: udp
