@@ -134,24 +134,13 @@
         state: present
 
 
-    # TEMPORARY: whitelist 401s on outline.seven30.xyz to stop false-positive
-    # http-generic-401-bf bans. Root cause is old browser tabs loaded at the
-    # legacy outline.mars.seven30.xyz origin — their SPAs poll outline.seven30.xyz
-    # cross-origin without cookies, producing a storm of 401s.
-    # TODO: remove this file once all legacy outline.mars.seven30.xyz tabs are
-    # closed and users have reloaded from outline.seven30.xyz.
-    - name: "TEMPORARY: Whitelist Outline 401s (legacy outline.mars origin)"
-      copy:
-        dest: /etc/crowdsec/parsers/s02-enrich/whitelist-outline-401.yaml
-        content: |
-          name: seven30/whitelist-outline-401
-          description: "TEMPORARY: whitelist 401s on outline.seven30.xyz"
-          # Remove once legacy outline.mars.seven30.xyz browser tabs are gone.
-          whitelist:
-            reason: "Outline SPA polls cross-origin from legacy outline.mars.seven30.xyz; 401s are not attacks"
-            expression:
-              - evt.Meta.http_status == '401' && evt.Meta.target_fqdn == 'outline.seven30.xyz'
-        mode: "0644"
+    # The temporary Outline 401 whitelist (legacy outline.mars origin) is
+    # retired: outline.seven30.xyz returned no 401 in the two days before
+    # 2026-11-27. This task removes the file from the host.
+    - name: Remove the retired Outline 401 whitelist
+      file:
+        path: /etc/crowdsec/parsers/s02-enrich/whitelist-outline-401.yaml
+        state: absent
       notify: Restart CrowdSec
 
     - name: Check if bouncer already exists

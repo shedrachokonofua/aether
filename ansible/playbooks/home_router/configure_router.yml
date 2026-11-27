@@ -539,8 +539,8 @@
           - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 protocol tcp
           - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 source address 10.2.0.10/32
           - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 destination address {{ vm.home_gateway_stack.ip }}
-          - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 destination port 443,{{ vm.home_gateway_stack.ports.caddy_public }}
-          - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 description 'GCP uptime monitor to home ingress'
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 destination port {{ vm.home_gateway_stack.ports.caddy_public }}
+          - set firewall ipv4 name CLOUD-to-TRUSTED rule 30 description 'GCP uptime monitor to home Caddy public listener'
           - set firewall ipv4 name TRUSTED-to-CLOUD default-action drop
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 10 action accept
           - set firewall ipv4 name TRUSTED-to-CLOUD rule 10 state established
