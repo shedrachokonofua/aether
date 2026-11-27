@@ -5,7 +5,7 @@
 # and force-updates them when the digest behind a fixed tag (:latest) changes in
 # the private GitLab registry. Only OUR CI-built images opt in: orion, helios,
 # minos, mnemo, deskplane (controller, serve, mcp), frame-gallery,
-# instacart-mcp, x-bridge and the espn/finviz MCP servers.
+# instacart-mcp, x-bridge, antigravity-bridge and the espn/finviz MCP servers.
 # Third-party :latest sidecars are excluded per-workload via
 # keel.sh/monitorContainers.
 #

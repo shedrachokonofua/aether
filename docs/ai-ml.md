@@ -196,8 +196,13 @@ Clinepass also exposes `clinepass/qwen3.8-max` and
 Google Antigravity is exposed through the single-tenant bridge as
 `antigravity/gemini-4-neon`, `antigravity/gemini-4-hydrogen`, and
 `antigravity/gemini-4-argon`. The bridge translates OpenAI chat-completions
-requests to the subscription API; clients retain ownership of tool execution
-and follow-up results. Neon and Hydrogen were added and Gemini 3.8 Flash was
+requests into turns of Google's official Antigravity ACP server (`agy`
+1.5.2, pinned in the bridge image); it never calls the Antigravity backend
+itself. Clients retain ownership of tool execution and follow-up results: a
+client tool call is held open inside the ACP turn until the client's next
+request returns the result. The server's native tools are disabled or refused.
+Over ACP no Gemini 4 model advertised an xhigh tier on 2026-11-26, so xhigh runs
+at high. Neon and Hydrogen were added and Gemini 3.8 Flash was
 dropped on 2026-11-23. Neon and Hydrogen draw the shared Gemini 5h/weekly quota
 that the bridge's `/usage` reports, so Moira ranks them: Neon xhigh represents
 the pool in `moira/frontier` and Neon low in `moira/strong`, Hydrogen low in

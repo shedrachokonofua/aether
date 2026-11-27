@@ -4,9 +4,13 @@
 # Source: ssh://git@ssh.gitlab.home.shdr.ch:2222/so/antigravity-bridge.git
 # Single-tenant bridge: OAuth tokens stay server-side; callers authenticate with
 # an independent random bearer token. Tool execution remains client-owned.
+# Every model call goes through Google's official Antigravity ACP server, which
+# the image pins; the secret is that server's OAuth token file (`bun run login`
+# in the bridge repo). Each turn in progress runs one ACP server process.
+# Keel force-polls :latest, so a green default branch redeploys itself.
 
 locals {
-  antigravity_image         = "registry.gitlab.home.shdr.ch/so/antigravity-bridge@sha256:eabd6c73632d9d85bf3862b1167b80d453095b267a3c424773ddca113650c2f2"
+  antigravity_image         = "registry.gitlab.home.shdr.ch/so/antigravity-bridge:latest"
   antigravity_host          = "antigravity.home.shdr.ch"
   antigravity_port          = 8080
   antigravity_ns            = module.namespace["antigravity"].name
@@ -72,6 +76,11 @@ resource "kubernetes_deployment_v1" "antigravity" {
     name      = "antigravity-bridge"
     namespace = local.antigravity_ns
     labels    = local.antigravity_labels
+    annotations = {
+      "keel.sh/policy"   = "force"
+      "keel.sh/trigger"  = "poll"
+      "keel.sh/matchTag" = "true"
+    }
   }
 
   spec {
@@ -89,8 +98,7 @@ resource "kubernetes_deployment_v1" "antigravity" {
       metadata {
         labels = local.antigravity_labels
         annotations = {
-          "aether.shdr.ch/antigravity-image" = local.antigravity_image
-          "aether.shdr.ch/env-sha"           = nonsensitive(sha256(jsonencode(kubernetes_secret_v1.antigravity_env.data)))
+          "aether.shdr.ch/env-sha" = nonsensitive(sha256(jsonencode(kubernetes_secret_v1.antigravity_env.data)))
         }
       }
 
@@ -113,7 +121,7 @@ resource "kubernetes_deployment_v1" "antigravity" {
         container {
           name              = "antigravity-bridge"
           image             = local.antigravity_image
-          image_pull_policy = "IfNotPresent"
+          image_pull_policy = "Always"
 
           security_context {
             allow_privilege_escalation = false
@@ -125,6 +133,11 @@ resource "kubernetes_deployment_v1" "antigravity" {
           env {
             name  = "PORT"
             value = tostring(local.antigravity_port)
+          }
+          env {
+            # Concurrent turns (one ACP server process each, ~450 MB at peak).
+            name  = "ANTIGRAVITY_MAX_PROCESSES"
+            value = "4"
           }
           env {
             name = "ANTIGRAVITY_CREDENTIALS"
@@ -168,9 +181,34 @@ resource "kubernetes_deployment_v1" "antigravity" {
             period_seconds        = 30
           }
 
+          # ACP state (seeded token, per-session conversation stores the
+          # bridge sweeps after 2h, and the empty session workspace) and the
+          # server's temporary files; the root filesystem stays read-only.
+          volume_mount {
+            name       = "state"
+            mount_path = "/var/lib/antigravity-bridge"
+          }
+          volume_mount {
+            name       = "tmp"
+            mount_path = "/tmp"
+          }
+
           resources {
-            requests = { cpu = "50m", memory = "128Mi" }
-            limits   = { cpu = "1", memory = "512Mi" }
+            requests = { cpu = "100m", memory = "512Mi" }
+            limits   = { cpu = "2", memory = "3Gi" }
+          }
+        }
+
+        volume {
+          name = "state"
+          empty_dir {
+            size_limit = "2Gi"
+          }
+        }
+        volume {
+          name = "tmp"
+          empty_dir {
+            size_limit = "1Gi"
           }
         }
       }
@@ -179,6 +217,8 @@ resource "kubernetes_deployment_v1" "antigravity" {
 
   lifecycle {
     ignore_changes = [
+      metadata[0].annotations["kubernetes.io/change-cause"],
+      spec[0].template[0].metadata[0].annotations["keel.sh/update-time"],
       spec[0].template[0].spec[0].priority_class_name,
     ]
   }
@@ -278,11 +318,6 @@ resource "kubernetes_manifest" "antigravity_egress" {
             { matchName = "daily-cloudcode-pa.googleapis.com" },
             { matchName = "daily-cloudcode-pa.sandbox.googleapis.com" },
             { matchName = "cloudcode-pa.googleapis.com" },
-            # Client-version discovery: the backend gates models on the
-            # client version (Gemini 4 Argon is hidden from antigravity/cli/1.2.4,
-            # listed for 1.3.x on 2026-10-15); the bridge polls the CLI update
-            # manifest every 6h.
-            { matchName = "antigravity-cli-auto-updater-974169037036.us-central1.run.app" },
           ]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
         },
