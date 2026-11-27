@@ -23,7 +23,7 @@ effort_defaults:
   grok-4.7: high
   claude-haiku-5-5: high
   qwen3.8-max: xhigh
-  deepseek-v4.1-flash: max
+  deepseek-v4.1-flash: high   # low/high/max; high verified on Ollama Cloud, Command Code and Go 2026-11-26
   glm-5.4: max
   glm-5.3-flash: max
   gpt-6-luna: high
