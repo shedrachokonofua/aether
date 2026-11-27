@@ -175,7 +175,7 @@ Opt-in is per-workload metadata — `keel.sh/policy=force`, `keel.sh/trigger=pol
 `keel.sh/matchTag=true`. Native Deployments (orion/litellm) carry the
 annotations inline; Helm-managed Deployments (mnemo/deskplane) get them via
 `kubernetes_annotations` because their charts expose no annotation passthrough.
-Keel polls every minute using each workload's existing image pull secret, so no
+Keel polls every 5 seconds using each workload's existing image pull secret, so no
 cluster-wide registry credential is configured.
 
 Keel owns the running build, not OpenTofu. It keeps the image string at

@@ -37,10 +37,13 @@ resource "helm_release" "keel" {
 
   values = [yamlencode({
     # Poll registries for new :latest digests. Per-workload keel.sh/pollSchedule
-    # can override this global default.
+    # can override this global default. 5s keeps push-to-rollout lag near the
+    # pull time; at ~10 tracked images that is ~120 registry checks/min, inside
+    # the 500m limit below (idle use ~2m at 30s). If the throttling symptom
+    # below ("docker credentials were not found") returns, back this off first.
     polling = {
       enabled         = true
-      defaultSchedule = "@every 1m"
+      defaultSchedule = "@every 5s"
     }
 
     # Kubernetes provider only. The Helm provider would run `helm upgrade` and
