@@ -36,10 +36,12 @@ task ansible:playbook -- gitlab/runners.yml
 GitLab has no instance-wide default cleanup policy, so `gitlab.yml` installs the
 user timer `gitlab-registry-cleanup-policy.timer` (daily 03:00), which pipes
 `registry-cleanup-policy.rb` into `gitlab-rails runner` and applies one policy
-to every project with images: run daily, keep the 5 newest tags plus `latest`, delete other
-tags older than 7 days. The same run prunes build-cache repositories (`cache`
-or `*/cache`) to their 5 newest tags once tags are older than 1 day, because CI
-pushes one cache tag per build and project policies cannot go below 7 days.
+to every project with images: run daily, keep the 25 newest tags plus `latest`,
+`main`, and versioned/OCI-chart tags (`^(latest|main|v?[0-9]+\.[0-9]+.*)$`),
+and delete other tags older than 30 days. The same run prunes build-cache
+repositories (`cache` or `*/cache`) to their 5 newest tags once tags are older
+than 1 day, because CI pushes one cache tag per build (~21 GB/week) and project
+policies cannot go below 7 days.
 
 ```bash
 task ansible:playbook -- gitlab/gitlab.yml --tags registry-cleanup

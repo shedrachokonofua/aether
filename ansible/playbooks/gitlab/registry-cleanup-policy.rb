@@ -4,13 +4,22 @@
 # Projects without images are skipped: GitLab's ContainerExpirationPolicyWorker
 # disables their policies daily (disable_policies_without_container_repositories).
 # Deleted tags are reclaimed by the registry metadata database's online GC.
+#
+# Retention sizing (audited 2026-11-27 on 511 GB disk, 164 GB registry):
+# - name_regex_keep protects :latest, :main, OCI Helm charts (0.1.0-<sha>,
+#   0.2.34 — ~5 MB total), and versioned release/base tags (v0.2.34, 18.3,
+#   0.11.0-amd64, 2.0.3-agent-* — ~6.1 GB total) without matching commit SHAs.
+# - keep_n: 25 retains slow/medium SHA- and digest-pinned repos indefinitely
+#   (ranks 6-25 add ~23 GB across all non-cache repos due to layer dedup).
+# - older_than: 30d gives high-velocity repos (30-400 pushes/wk) a full month
+#   before unbumped pinned digests can expire, keeping disk usage ~50% of 511 GB.
 POLICY = {
   enabled: true,
   cadence: '1d',
-  keep_n: 5,
-  older_than: '7d',
+  keep_n: 25,
+  older_than: '30d',
   name_regex: '.*',
-  name_regex_keep: 'latest'
+  name_regex_keep: '^(latest|main|v?[0-9]+\.[0-9]+.*)$'
 }.freeze
 
 changed = 0
