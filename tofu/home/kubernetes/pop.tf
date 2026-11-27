@@ -632,8 +632,8 @@ resource "kubernetes_manifest" "pop_api_ingress" {
       # Without this rule the pop-egress default-deny drops every such call and
       # every SSO login ends in 503 'pop-api unreachable'.
       ingress = [
-        # The Cilium Gateway (entity "ingress", same pattern as assay.tf /
-        # celld.tf) delivers HTTPRoute pop-control traffic — /v1, /auth, /mcp,
+        # The Cilium Gateway (entity "ingress", same pattern as assay.tf)
+        # delivers HTTPRoute pop-control traffic — /v1, /auth, /mcp,
         # /healthz, /.well-known → pop-api:8080. Without this rule the policy's
         # default-deny drops every CLI, MCP, CI deploy and visitor SSO request.
         {

@@ -83,7 +83,7 @@ Each new request is at least 1.15x the workload's 30-day peak working set
 | qBittorrent | 2Gi | 256Mi | 109Mi |
 | OpenWebUI | 2Gi | 1280Mi | 1,049Mi |
 | Karakeep Meilisearch | 1Gi | 256Mi | 82Mi |
-| celld (2 replicas) | 512Mi | 128Mi | 65Mi |
+| celld (2 replicas, decommissioned 2026-11-27) | 512Mi | 128Mi | 65Mi |
 | Game server main container | 8Gi | 2Gi | 9.5Gi while in use, 1.6Gi idle |
 
 The game server is the exception to the 1.15x rule: it is idle most of the
