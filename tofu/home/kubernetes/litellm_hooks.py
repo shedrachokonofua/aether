@@ -187,37 +187,33 @@ def _effective_allowed_models(user_api_key_dict: Any) -> list[str] | None:
     return key_models or None
 
 
-def _org_excluded_prefixes(user_api_key_dict: Any) -> tuple[str, ...]:
-    """Model-name prefixes the caller's org must never be routed to.
+def _team_bound(user_api_key_dict: Any, groups: set[str]) -> frozenset[str] | None:
+    """The concrete models a team key may be routed to; None when unbounded.
 
-    MOIRA_ORG_EXCLUDED_PREFIXES is `org=prefix,prefix;org=...`, matched
-    against the key's `metadata.org` (daimyo mints one key per task with it).
-    Keys of any other org, and keys without an org, are unaffected.
+    A key in a LiteLLM team with a model list may reach only that list (daimyo
+    mints each org's keys in the org's team, Org spec.litellm.team; tofu
+    teams: register_litellm_virtual_keys.yml litellm_teams). Tier and group
+    names on the list (moira/*, router/*) only admit the request; Moira picks
+    among the team's concrete names, and concrete names on the key itself
+    narrow them further. Keys without a team, or in an unrestricted team, keep
+    the pre-team behaviour.
     """
-    metadata = getattr(user_api_key_dict, "metadata", None)
-    org = metadata.get("org") if isinstance(metadata, dict) else None
-    if not isinstance(org, str) or not org:
-        return ()
-    for entry in os.environ.get("MOIRA_ORG_EXCLUDED_PREFIXES", "").split(";"):
-        name, _, prefixes = entry.partition("=")
-        if name.strip() == org:
-            return tuple(p.strip() for p in prefixes.split(",") if p.strip())
-    return ()
+    if not getattr(user_api_key_dict, "team_id", None):
+        return None
+    team_models = [str(m) for m in (getattr(user_api_key_dict, "team_models", None) or [])]
+    if not team_models or "all-proxy-models" in team_models:
+        return None
+    placeholders = {"all-team-models", "all-proxy-models", "no-default-models"}
 
+    def concrete(names: list[str]) -> set[str]:
+        return {
+            n for n in names
+            if not n.startswith(("moira/", "router/")) and n not in groups and n not in placeholders
+        }
 
-def _excluding(allowed: list[str] | None, requested: str, groups: set[str], excluded: tuple[str, ...]) -> list[str]:
-    """The concrete models an org with exclusions may be routed to.
-
-    Moira filters only by an allowlist of concrete names that does not hold
-    the requested alias, so an alias-scoped (or unrestricted) key is widened to
-    every concrete model this proxy serves before the exclusions apply.
-    """
-    if allowed is None or requested in allowed:
-        from litellm.proxy.proxy_server import llm_router
-
-        names = llm_router.get_model_names() if llm_router is not None else []
-        allowed = [n for n in names if not n.startswith(("moira/", "router/")) and n not in groups]
-    return sorted({m for m in allowed if not m.startswith(excluded)})
+    bound = concrete(team_models)
+    narrowed = concrete([str(m) for m in (getattr(user_api_key_dict, "models", None) or [])])
+    return frozenset(bound & narrowed if narrowed else bound)
 
 
 class MoiraRouter(CustomLogger):
@@ -288,11 +284,12 @@ class MoiraRouter(CustomLogger):
             # LiteLLM_SpendLogs, so the two join per request.
             "request_id": data.get("litellm_call_id"),
         }
-        excluded = _org_excluded_prefixes(user_api_key_dict)
-        if excluded:
-            payload["allowed_models"] = _excluding(payload["allowed_models"], model, groups, excluded)
-            if not payload["allowed_models"]:
-                raise HTTPException(status_code=503, detail="no model is allowed for this key's org")
+        bound = _team_bound(user_api_key_dict, groups)
+        if bound is not None:
+            if not bound:
+                raise HTTPException(status_code=503, detail="this key's team allows no concrete model")
+            # Concrete names only: Moira then filters every tier to the team.
+            payload["allowed_models"] = sorted(bound)
         allowed = payload["allowed_models"]
         route_key = (model, api, payload["stream"], effort, None if allowed is None else tuple(sorted(allowed)))
 
@@ -312,8 +309,8 @@ class MoiraRouter(CustomLogger):
         except Exception as exc:  # reuse Moira's last route, else fail open
             recent = _recent_route(route_key)
             if recent is None:
-                if excluded:  # the static alias default is not filtered by org
-                    raise HTTPException(status_code=503, detail="Moira decide unavailable; this org never fails open")
+                if bound is not None:  # the static alias default is not bounded by the team
+                    raise HTTPException(status_code=503, detail="Moira decide unavailable; a team key never fails open")
                 logger.warning(
                     "Moira decide unavailable (%s: %s); failing open", type(exc).__name__, exc
                 )
@@ -327,8 +324,8 @@ class MoiraRouter(CustomLogger):
 
         action = decision.get("action")
         if action == "passthrough":
-            if excluded:
-                raise HTTPException(status_code=503, detail="Moira passed through a tier this org may only use routed")
+            if bound is not None:
+                raise HTTPException(status_code=503, detail="Moira passed through a tier this team may only use routed")
             return None
         if action == "refuse":
             body = decision.get("body")
@@ -342,12 +339,12 @@ class MoiraRouter(CustomLogger):
 
         chosen = decision.get("model")
         if action != "route" or not isinstance(chosen, str) or not chosen:
-            if excluded:
-                raise HTTPException(status_code=503, detail="Moira returned no usable route for this org")
+            if bound is not None:
+                raise HTTPException(status_code=503, detail="Moira returned no usable route for this team")
             logger.warning("Moira decide returned an unusable %r answer; failing open", action)
             return None
-        if excluded and chosen.startswith(excluded):
-            raise HTTPException(status_code=503, detail="Moira routed this org to an excluded model")
+        if bound is not None and chosen not in bound:
+            raise HTTPException(status_code=503, detail="Moira routed outside this key's team")
 
         if not reused:  # a reused answer must not refresh its own age
             _remember_route(route_key, decision)
@@ -363,8 +360,8 @@ class MoiraRouter(CustomLogger):
             elif api == "chat":
                 data["reasoning_effort"] = route_effort
         fallbacks = decision.get("fallbacks")
-        if isinstance(fallbacks, list) and excluded:
-            fallbacks = [f for f in fallbacks if not (isinstance(f, str) and f.startswith(excluded))]
+        if isinstance(fallbacks, list) and bound is not None:
+            fallbacks = [f for f in fallbacks if f in bound]
         if isinstance(fallbacks, list) and fallbacks:
             data["fallbacks"] = fallbacks
         # Fallbacks may need another effort than the primary (e.g. Muse at max,
