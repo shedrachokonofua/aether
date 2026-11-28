@@ -1440,6 +1440,23 @@ locals {
         "goldilocks.fairwinds.com/enabled" = "true"
       }
     }
+    "nix-cache" = {
+      tier                    = "app"
+      owner                   = "aether"
+      backup                  = "standard"
+      exposure                = "internal"
+      create_s3_backup_secret = false
+      description             = "Nix binary caches: ncps pull-through proxy and Attic pushable cache backed by SeaweedFS S3"
+      source_file             = "tofu/home/kubernetes/nix_cache.tf"
+      registry_access         = "github"
+      hostnames = [
+        "nix-cache.home.shdr.ch",
+        "attic.home.shdr.ch",
+      ]
+      extra_labels = {
+        "goldilocks.fairwinds.com/enabled" = "true"
+      }
+    }
   }
 }
 
@@ -1482,6 +1499,7 @@ locals {
     "matrix.home.shdr.ch"      = "/_matrix/client/versions"
     "kestra.home.shdr.ch"      = "/ui/"
     "searxng.home.shdr.ch"     = "/healthz"
+    "nix-cache.home.shdr.ch"   = "/healthz"
   }
 
   # These endpoints are not meaningful to check with the current GET-based

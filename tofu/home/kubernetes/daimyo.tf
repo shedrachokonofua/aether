@@ -558,7 +558,7 @@ locals {
   # omp d4a9c73 (pipeline 17571 build:harness-omp): `tool` on PATH, the
   # task's MCP tools from the shell (`tool list|describe|call`, key=@path,
   # --to PATH). omp-dev is not moved: its image needs an attestation.
-  daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:298d179a27d1ee8b63c6b58d8dd0fb78dcc489c3ce50326c01e30106513781c9"
+  daimyo_harness_omp_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:298d179a27d1ee8b63c6b58d8dd0fb78dcc489c3ce50326c01e30106513781c9"
   # strands 2c2a5092 (main pipeline 19262 build:harness-strands; verify stage ran
   # 12/12 tests on Bun + @strands-agents/harness@0.6.0 + @strands-agents/sdk@1.27.0):
   # in-process AWS Strands runner with Monty Python programmatic_tool_caller,
@@ -585,10 +585,14 @@ locals {
   # 7eaeb9c echo (pipeline 6741, current Python SDK: prompt cancel, no null
   # data part): org qa's echo, attested in qa by the campaign client.
   daimyo_qa_echo_image = "registry.gitlab.home.shdr.ch/so/daimyo/echo-agent@sha256:95af48a0d5280015793bc4c89ed2d105c38a9598453db11cb897540dc36cd22c"
-  daimyo_ns            = module.namespace["daimyo-system"].name
-  daimyo_host          = "daimyo.home.shdr.ch"
-  daimyo_registry_host = "registry.gitlab.home.shdr.ch"
-  daimyo_labels        = { app = "daimyo" }
+  # dev-sandbox be26e7f0 (so/dev-sandbox pipeline 19268): NixOS 25.11 personal
+  # dev sandbox image (uid 10001, single-user local Nix with preloaded store DB
+  # and cluster ncps + Attic binary caches).
+  daimyo_dev_sandbox_image = "registry.gitlab.home.shdr.ch/so/dev-sandbox/sandbox@sha256:6aaed8b665004a0e6ab6f47c4cbd8f9633e0700d762cc981c9d4ccccfb8e56b8"
+  daimyo_ns                = module.namespace["daimyo-system"].name
+  daimyo_host              = "daimyo.home.shdr.ch"
+  daimyo_registry_host     = "registry.gitlab.home.shdr.ch"
+  daimyo_labels            = { app = "daimyo" }
   # The controller reconciles only CRs carrying its instance label
   # (config.controller.instance below); unlabelled CRs are ignored.
   daimyo_instance  = "daimyo"
@@ -668,8 +672,18 @@ locals {
     "static.crates.io",
     "static.rust-lang.org",
     "github.com",
+    "api.github.com",
     "codeload.github.com",
     "objects.githubusercontent.com",
+    "raw.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+    "cache.nixos.org",
+    "channels.nixos.org",
+    "releases.nixos.org",
+    "tarballs.nixos.org",
+    "nix-community.cachix.org",
+    "nix-cache.home.shdr.ch",
+    "attic.home.shdr.ch",
   ]
   # Polymarket's public read-only market-data APIs (gamma-api: events and
   # markets; clob: price history), called by the Orion `polymarket` skill from
@@ -1105,7 +1119,10 @@ resource "helm_release" "daimyo" {
     # it dev's first pod on a node pulled the ~1 GB omp-dev image (66 s).
     prepull = {
       nodeSelector = { "kubernetes.io/arch" = "amd64" }
-      images       = { "omp-dev" = local.daimyo_harness_omp_dev_image }
+      images = {
+        "omp-dev"     = local.daimyo_harness_omp_dev_image
+        "dev-sandbox" = local.daimyo_dev_sandbox_image
+      }
     }
     config = {
       publicBaseUrl       = "https://daimyo.home.shdr.ch"
@@ -1597,6 +1614,31 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
           }]
           toPorts = [{ ports = [{ port = "8080", protocol = "TCP" }] }]
         } if org == "personal"
+        ], [
+        # Nix binary caches (nix_cache.tf): ncps pull-through proxy and Attic
+        # pushable cache, reached over in-cluster HTTP from personal and Cicada
+        # sandboxes/tasks. Appended last so prior list indices never shift.
+        for org in [each.key] : {
+          toEndpoints = [{
+            matchLabels = {
+              "app.kubernetes.io/name"      = "ncps"
+              "io.kubernetes.pod.namespace" = local.nix_cache_namespace
+            }
+          }]
+          toFQDNs = []
+          toPorts = [{ ports = [{ port = tostring(local.ncps_port), protocol = "TCP" }] }]
+        } if org == "personal" || contains(local.daimyo_cicada_orgs, org)
+        ], [
+        for org in [each.key] : {
+          toEndpoints = [{
+            matchLabels = {
+              "app.kubernetes.io/name"      = "attic"
+              "io.kubernetes.pod.namespace" = local.nix_cache_namespace
+            }
+          }]
+          toFQDNs = []
+          toPorts = [{ ports = [{ port = tostring(local.attic_port), protocol = "TCP" }] }]
+        } if org == "personal" || contains(local.daimyo_cicada_orgs, org)
       ])
     }
   }
@@ -2282,6 +2324,56 @@ locals {
       resources        = { cpu = "3", memory = "8Gi", workspace = "20Gi", requests = { cpu = "1", memory = "1Gi" } }
     }
   }
+}
+
+# Org `personal`: Nix-based personal development sandbox (`so/dev-sandbox`).
+# Low reservations (500m / 1Gi) with burst headroom up to 4 CPU / 8Gi and a
+# 20Gi workspace; pulls Nix packages through in-cluster ncps and Attic.
+resource "kubectl_manifest" "daimyo_personal_dev_sandbox_class" {
+  depends_on = [kubectl_manifest.daimyo_project, kubectl_manifest.daimyo_sandboxclass_crd]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "SandboxClass"
+    metadata = {
+      name      = "dev"
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = {
+      image = local.daimyo_dev_sandbox_image
+      resources = {
+        cpu       = "4"
+        memory    = "8Gi"
+        workspace = "20Gi"
+        requests  = { cpu = "500m", memory = "1Gi" }
+      }
+      defaultTtl = "8h"
+      maxTtl     = "24h"
+    }
+  })
+}
+
+# Org `personal`: human users may create sandboxes from org-personal classes
+# (e.g. `dev`) and use/delete the sandboxes they own (`resource.owner ==
+# principal.sub`). One Cedar statement per Policy CR.
+resource "kubectl_manifest" "daimyo_personal_user_sandbox_policy" {
+  for_each = {
+    "user-sandbox-create" = "permit (principal is User, action == Action::\"sandbox::create\", resource is SandboxClass) when { resource.org == \"personal\" };"
+    "user-sandbox-use"    = "permit (principal is User, action in [Action::\"sandbox::use\", Action::\"sandbox::delete\"], resource is Sandbox) when { resource.owner == principal.sub };"
+  }
+  depends_on = [kubectl_manifest.daimyo_org]
+
+  yaml_body = yamlencode({
+    apiVersion = "daimyo.shdr.ch/v1alpha1"
+    kind       = "Policy"
+    metadata = {
+      name      = each.key
+      namespace = "org-personal"
+      labels    = local.daimyo_cr_labels
+    }
+    spec = { text = each.value }
+  })
 }
 
 # Org `personal`: a user decides the approvals he is an assignee of. The

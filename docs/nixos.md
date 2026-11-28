@@ -149,6 +149,26 @@ task configure:bastion-cert
 - The old Fedora guest/path is removed only after live verification.
 - `docs/`, inventory, Taskfile targets, and obsolete Ansible ownership are updated.
 
+## Binary Caches and Dev Sandbox
+
+The Kubernetes `nix-cache` namespace (`tofu/home/kubernetes/nix_cache.tf`)
+provides two shared Nix binary caches backed by SeaweedFS S3 on Smith's ZFS HDD
+array and a shared CNPG Postgres metadata cluster (`nix-cache-cnpg`, 10Gi Ceph
+RBD, backed up via `cnpg_backups.tf`):
+
+| Service | External URL | In-cluster URL | Bucket | Public Key |
+| --- | --- | --- | --- | --- |
+| `ncps` (pull-through proxy for `cache.nixos.org` + `nix-community.cachix.org`) | `https://nix-cache.home.shdr.ch` | `http://ncps.nix-cache.svc.cluster.local:8501` | `nix-ncps` (200G LRU) | `nix-cache.home.shdr.ch:BA5cmYbaozhF1DkvUP1pD1dTiV8B/xMv2HSj/ve5XmI=` |
+| `Attic` (private pushable cache `aether`, FastCDC + zstd, 90d GC) | `https://attic.home.shdr.ch/aether` | `http://attic.nix-cache.svc.cluster.local:8080/aether` | `nix-attic` | `aether:sKnCiTyMC76DhWv4pS0/8qjABTey/YJ1fA/evBUn1Xc=` |
+
+Personal Daimyo development sandboxes use the NixOS 25.11 container image
+built by sibling repo `so/dev-sandbox` (`registry.gitlab.home.shdr.ch/so/dev-sandbox/sandbox`,
+wired to `SandboxClass/dev` and `Policy/user-sandbox-{create,use}` in
+`org-personal`, `tofu/home/kubernetes/daimyo.tf`). The image pre-loads
+`/nix/var/nix/db` at build time, runs single-user local Nix (`uid 10001`,
+`NIX_REMOTE=local`, `sandbox = false`), and pulls through the in-cluster `ncps`
+and `Attic` services via `daimyo_tasks_egress`.
+
 ## Related Documents
 
 - [Virtual Machines](virtual-machines.md)

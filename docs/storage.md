@@ -149,7 +149,13 @@ node-local `/var/mnt/ci` hostPath.
 
 - **Use local disk for:** Talos root, etcd/runtime churn, kubelet/containerd,
   CI scratch, build caches, temporary files, and GPU model/cache locality.
-- **Use Ceph for:** durable application PVCs, HA-capable VM disks, replicated
+- **Use SeaweedFS S3 (Smith ZFS HDD) for:** bulk object workloads and immutable
+  binary caches where sequential throughput + ZFS ARC matter more than 4K NVMe
+  IOPS — including the Kubernetes `nix-cache` namespace (`ncps` bucket
+  `nix-ncps` with 200G LRU eviction, `Attic` bucket `nix-attic` with FastCDC
+  chunking and 90-day GC, declared in `tofu/home/kubernetes/nix_cache.tf`).
+- **Use Ceph for:** durable application PVCs (including small CNPG Postgres
+  metadata clusters such as `nix-cache-cnpg`), HA-capable VM disks, replicated
   service data, movable workloads, shared data, and backup sources.
 
 ## NFS Storage
