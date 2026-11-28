@@ -35,7 +35,7 @@
 
 locals {
   meridian_namespace = module.namespace["meridian"].name
-  meridian_release   = "efc48606a05fe078b14e70866b619f48087908a0"
+  meridian_release   = "a3c305c81e401f2504230d4c258b991e3a3009e4"
   meridian_labels = {
     "app.kubernetes.io/name"       = "meridian"
     "app.kubernetes.io/managed-by" = "opentofu"
@@ -278,7 +278,7 @@ locals {
         # to the server (RFC 8693, `exchange` on the issuers above).
         deskplane = {
           about    = "Remote desktops, browsers and phones to see and operate."
-          mcp      = "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp"
+          mcp      = "http://deskplane-mcp.deskplane.svc.cluster.local:8100/mcp?tools=all"
           exchange = "deskplane"
           timeout  = "30m"
         }
