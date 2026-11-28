@@ -547,6 +547,7 @@
       loop: "{{ litellm_teams | dict2items }}"
       loop_control:
         label: "{{ item.key }}"
+      no_log: true
 
     - name: Create or update LiteLLM teams with their model lists
       tags: [teams]
@@ -590,6 +591,8 @@
       loop: "{{ litellm_team_key_lookup.results }}"
       loop_control:
         label: "{{ item.item.key }}"
+      # The assertion's failure prints the item: the key's full record.
+      no_log: true
 
     - name: Move team keys into their team, inheriting its models
       tags: [teams]
