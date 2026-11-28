@@ -374,7 +374,12 @@ locals {
   # (`kind: strands`), `systemPromptMode: "replace"` (omp & strands) and
   # `harness.timezone`, plus `d05b3afe`/`7b97a421` (`Org.spec.litellm.team`,
   # `GET /v1/me/orgs`).
-  daimyo_server_tag = "sha256:f23cae42efb8192ae88bd18d06e1c53c85434bb271f1ae651c19dd7ebdcb3e43"
+  # b12d7cb (main pipeline green): Server and the Agent CRD
+  # (daimyo_agent_crd first), no migration: an Agent's `git.author`
+  # attributes its commits over the org's author and the per-agent GitLab
+  # user (Cicada decision 126); an org's `git.author` now also applies in a
+  # perAgent org.
+  daimyo_server_tag = "sha256:c315b34b3ca23943b48307eb74d72b5354f4247358c743f44cf56266b3f0d3d5"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -1843,13 +1848,15 @@ resource "kubectl_manifest" "daimyo_org" {
             allowedHosts = ["deskplane-mcp.deskplane.svc", "litellm.litellm.svc.cluster.local", "meridian.${local.meridian_namespace}.svc.cluster.local"]
           }
         }
-        # seven30: its agents push with kv/orgs/seven30/gitlab (orgToken),
-        # `cicada-writer`'s token since 2026-11-28 (Cicada decisions 124,
-        # 125; it was an empty placeholder). Every commit records one author,
-        # as the cicada org's did: on 2026-11-26 a writer left to its own git
-        # config copied the operator's identity from `git log`.
+        # seven30: per-agent GitLab users limited to seven30's repositories
+        # (Cicada decision 126), so no seven30 agent can push to so/*. A
+        # Cicada agent's commits still read as Cicada: Cicada sets the Agent's
+        # own git.author (cicada.tf [agents] git_author).
         seven30 = {
-          git = { author = { name = "Cicada", email = "cicada@noreply.shdr.ch" } }
+          git = {
+            identity     = "perAgent"
+            allowedRepos = ["seven30/*"]
+          }
         }
       } : name => extra if name == each.key })...
     )

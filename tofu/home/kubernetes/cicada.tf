@@ -61,7 +61,10 @@ locals {
   # f365b3b (main pipeline green): a session or task daimyo answers 404 for
   # (the removed cicada org's) reads as ended, so its writer or planner is
   # replaced in the repository's org. No migration.
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:9a4b1d355bd4f3544d694faea2256366762dba39e6bf6675d5557f349bcb6b11"
+  # b01db86 (main pipeline green): [agents] git_author becomes every synced
+  # agent's daimyo git.author (decision 126). Needs daimyo b12d7cb (Agent
+  # spec.git). No migration.
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:c198fd7f8e6edfb95288174f3b8a3b0e500cf949985b5cf8fb0b485fa95a14a2"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
@@ -109,6 +112,9 @@ locals {
     # decision 70): Cloudflare's security-audit skill, for the milestone audits
     # the planner creates.
     skills = { bundle = "cicada-skills", version = 1, names = ["security-audit"] }
+    # Every agent Cicada syncs gets this daimyo Agent git.author (decision
+    # 126): per-agent GitLab users push, commits read as Cicada.
+    git_author = { name = "Cicada", email = "cicada@noreply.shdr.ch" }
 
     [review]
     # Every repository's default review lens. A repo's own [[lenses]] entry
