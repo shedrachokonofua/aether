@@ -1843,6 +1843,14 @@ resource "kubectl_manifest" "daimyo_org" {
             allowedHosts = ["deskplane-mcp.deskplane.svc", "litellm.litellm.svc.cluster.local", "meridian.${local.meridian_namespace}.svc.cluster.local"]
           }
         }
+        # seven30: its agents push with kv/orgs/seven30/gitlab (orgToken),
+        # `cicada-writer`'s token since 2026-11-28 (Cicada decisions 124,
+        # 125; it was an empty placeholder). Every commit records one author,
+        # as the cicada org's did: on 2026-11-26 a writer left to its own git
+        # config copied the operator's identity from `git log`.
+        seven30 = {
+          git = { author = { name = "Cicada", email = "cicada@noreply.shdr.ch" } }
+        }
       } : name => extra if name == each.key })...
     )
   })
