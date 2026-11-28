@@ -1201,7 +1201,10 @@ resource "helm_release" "daimyo" {
       clusterName = "daimyo-pg"
       instances   = 2
       imageName   = "ghcr.io/cloudnative-pg/postgresql:17"
-      storageSize = "20Gi"
+      # 50Gi (was 20): on 2026-11-28 both instances filled their volumes and
+      # stopped (CNPG "Not enough disk space"), taking daimyo and Cicada down.
+      # ceph-rbd expands in place; CNPG resizes the live PVCs.
+      storageSize = "50Gi"
       # Kyverno cnpg-require-ceph-rbd-storage Enforces this exact class.
       storageClass = "ceph-rbd"
       backup = {
