@@ -54,7 +54,11 @@ locals {
   # refusal is one operator Question (decision 123). No migration.
   # e6dd68e (main pipeline 18076): a refused onboarding step asks to add the
   # `cicada` and `cicada-writer` users to the repository's group (124).
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:63e2f0420a96bcb553d01ba50661a63556da92c4cee8ccc1025ce7daec8966a2"
+  # 5176339 (main pipeline 19235): a repository's work runs in its owner's
+  # daimyo org, and people see the orgs daimyo admits them to (decision
+  # 125). Needs the [daimyo] default_org/group_orgs config below and
+  # daimyo d57b88f4 (GET /v1/me/orgs). No migration.
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:6a9c79723c7963811f53d151e1c1b309fe308797c5becff6710ad81e9af03e49"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
