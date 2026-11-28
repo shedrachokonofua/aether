@@ -1225,9 +1225,12 @@ resource "helm_release" "daimyo" {
         # Daimyo had no primary meanwhile. Promote the replica first instead.
         primaryUpdateMethod   = "switchover"
         primaryUpdateStrategy = "unsupervised"
+        # 2Gi limit, 768Mi request (2026-11-28; were 1Gi/384Mi): daimyo-pg-1
+        # had restarted 78 times in 22 days, and a parallel scan of the 4 GB
+        # audit table killed the postmaster, failing over to the replica.
         resources = {
-          requests = { cpu = "300m", memory = "384Mi" }
-          limits   = { memory = "1Gi" }
+          requests = { cpu = "300m", memory = "768Mi" }
+          limits   = { memory = "2Gi" }
         }
         # Commits stalled for seconds on WAL fsync over Ceph RBD (2026-11-01:
         # IO:WalSync waits up to 0.85 s, engine pool timeouts). Timing feeds
