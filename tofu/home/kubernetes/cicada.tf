@@ -76,10 +76,16 @@ locals {
 
     [daimyo]
     url = "https://daimyo.home.shdr.ch"
-    org = "cicada"
+    # Orgs are owners (Cicada decision 125): a repository runs in its
+    # top-level group's org, else the operator's. daimyo.tf
+    # daimyo_cicada_orgs must list every org named here.
+    default_org = "personal"
     token_url = "https://auth.shdr.ch/realms/aether/protocol/openid-connect/token"
     client_id = "cicada"
     client_secret_file = "/etc/cicada/secrets/daimyo-client-secret"
+
+    [daimyo.group_orgs]
+    seven30 = "seven30"
 
     [gitlab]
     url = "https://gitlab.home.shdr.ch/"
@@ -90,7 +96,7 @@ locals {
     webhook_url = "https://${local.cicada_host}/hooks/gitlab"
 
     [agents]
-    # As pods in cicada-tasks reach this Service.
+    # As pods in the Cicada orgs' task namespaces reach this Service.
     mcp_url = "http://cicada.cicada.svc.cluster.local:8080/mcp"
     # Writers load these from daimyo.tf's cicada-skills ConfigBundle (Cicada
     # decision 70): Cloudflare's security-audit skill, for the milestone audits
@@ -125,12 +131,10 @@ locals {
     [auth]
     issuer = "https://auth.shdr.ch/realms/aether"
     audience = "cicada"
-    # shdrch signs in through cicada-operator; the automation client
-    # (keycloak.tf cicada_automation) acts for the operator from scripts.
-    # gh057 is the Seven30 co-founder (aether realm role seven30-developer).
-    # Cicada has one role: an operator controls every goal, not only
-    # seven30's.
-    operators = ["shdrch", "service-account-cicada-automation", "gh057"]
+    # A person sees the daimyo orgs their cicada-operator token is admitted
+    # to (daimyo GET /v1/me/orgs; daimyo.tf Org issuers): the operator both,
+    # Seven30 developers seven30. The automation client is admitted to the
+    # same orgs as the operator's machine principal.
     ui_client_id = "cicada-operator"
   TOML
 }

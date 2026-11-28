@@ -210,7 +210,7 @@
     # the request and Moira picks among the concrete names (litellm_hooks.py
     # _team_bound). None of the operator's own Claude, ChatGPT or Muse
     # subscriptions, and no moira/frontier: all its members are those
-    # (2026-11-28).
+    # (2026-11-28). The operator's own org `personal` has no team.
     litellm_team_models: &litellm_team_models
       - moira/strong
       - moira/balanced
@@ -248,7 +248,6 @@
       # Foundry's retrieval embeddings.
       - aether/qwen3-embedding:4b
     litellm_teams:
-      cicada: *litellm_team_models
       seven30: *litellm_team_models
     # Long-lived keys that join a team (key alias -> team id).
     litellm_team_keys:

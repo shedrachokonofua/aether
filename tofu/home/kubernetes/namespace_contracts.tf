@@ -368,19 +368,6 @@ locals {
         "app.kubernetes.io/part-of"    = "daimyo"
       }
     }
-    "org-cicada" = {
-      tier                    = "guest",
-      owner                   = "daimyo",
-      backup                  = "none",
-      exposure                = "none",
-      create_s3_backup_secret = false,
-      description             = "Daimyo org-cicada CRDs (spec §6.1)"
-      source_file             = "tofu/home/kubernetes/daimyo.tf"
-      extra_labels = {
-        "app.kubernetes.io/managed-by" = "opentofu"
-        "app.kubernetes.io/part-of"    = "daimyo"
-      }
-    }
     "personal-tasks" = {
       tier                    = "sandbox",
       owner                   = "daimyo",
@@ -393,14 +380,15 @@ locals {
         "app.kubernetes.io/managed-by" = "opentofu"
         "app.kubernetes.io/part-of"    = "daimyo"
         # kyverno.tf namespace_resourcequota_sandbox_dev: dev-agent sessions
-        # (4 CPU limits) share this namespace with orion's sessions.
+        # (4 CPU limits) share this namespace with orion's sessions and
+        # Cicada's writers, lenses and ci_exec build sandboxes.
         "aether.shdr.ch/quota-profile" = "sandbox-dev"
       }
       extra_annotations = {
         # Mirrors namespace_resourcequota_sandbox_dev (kyverno.tf). The CEL
         # GeneratingPolicy only re-evaluates on namespace CREATE/UPDATE, so
         # bump this alongside any quota change to force the sync.
-        "aether.shdr.ch/quota-rev" = "cpu8-64.mem24-80.pods30.r1"
+        "aether.shdr.ch/quota-rev" = "cpu28-96.mem64-144.pods60.r2"
       }
     }
     "seven30-tasks" = {
@@ -430,21 +418,6 @@ locals {
       extra_labels = {
         "app.kubernetes.io/managed-by" = "opentofu"
         "app.kubernetes.io/part-of"    = "daimyo"
-      }
-    }
-    "cicada-tasks" = {
-      tier                    = "sandbox",
-      owner                   = "daimyo",
-      backup                  = "none",
-      exposure                = "none",
-      create_s3_backup_secret = false,
-      description             = "Daimyo cicada task pods (Kata, spec §18.1)"
-      source_file             = "tofu/home/kubernetes/daimyo.tf"
-      extra_labels = {
-        "app.kubernetes.io/managed-by" = "opentofu"
-        "app.kubernetes.io/part-of"    = "daimyo"
-        # kyverno.tf namespace_resourcequota_sandbox_large: build sandboxes.
-        "aether.shdr.ch/quota-profile" = "sandbox-large"
       }
     }
     "colony-sandboxes" = {

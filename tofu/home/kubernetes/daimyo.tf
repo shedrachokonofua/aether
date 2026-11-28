@@ -579,16 +579,18 @@ locals {
   # aether's LiteLLM config (litellm_config.yaml.tftpl): a cheap real alias
   # so key minting succeeds even though echo never calls the model.
   daimyo_echo_model = "moira/flash"
-  daimyo_orgs       = toset(["personal", "seven30", "qa", "cicada"])
+  # Orgs are owners (the operator, Seven30); tools such as Cicada and Orion
+  # act inside them as Service principals.
+  daimyo_orgs = toset(["personal", "seven30", "qa"])
   # Orgs whose model keys daimyo mints in the LiteLLM team of the same name
   # (Org spec.litellm.team): the team's model list bounds what they reach,
   # and Moira routes their tier requests inside it (litellm_hooks.py
   # _team_bound). Teams: register_litellm_virtual_keys.yml litellm_teams.
-  daimyo_litellm_team_orgs = ["cicada", "seven30"]
+  daimyo_litellm_team_orgs = ["seven30"]
   # Orgs Cicada works in: their issuers admit svc:cicada and the automation
   # client, svc:cicada gets daimyo_cicada_policy there, and their task pods
   # reach Cicada's MCP and its build hosts.
-  daimyo_cicada_orgs = ["cicada", "seven30"]
+  daimyo_cicada_orgs = ["personal", "seven30"]
   # Cicada's machine principals, as issuer entries every Cicada org trusts.
   daimyo_cicada_issuers = [
     for azp in ["cicada", "cicada-automation"] : {
@@ -667,7 +669,7 @@ locals {
       contains(local.daimyo_deskplane_orgs, org) ? [local.deskplane_host] : [],
       contains(local.daimyo_pop_orgs, org) ? ["pop.home.shdr.ch"] : [],
       contains(local.trip_planner_orgs, org) ? local.trip_planner_public_mcp_hosts : [],
-      org == "cicada" ? local.daimyo_cicada_build_fqdns : [],
+      contains(local.daimyo_cicada_orgs, org) ? local.daimyo_cicada_build_fqdns : [],
       org == "personal" ? local.daimyo_personal_build_fqdns : [],
       org == "personal" ? local.daimyo_personal_polymarket_fqdns : [],
       org == "personal" ? local.daimyo_personal_youtube_fqdns : [],
@@ -723,7 +725,7 @@ resource "kubernetes_secret_v1" "daimyo_registry" {
 # cross-namespace secret references do not exist.
 resource "kubernetes_secret_v1" "daimyo_tasks_registry" {
   for_each   = local.daimyo_orgs
-  depends_on = [module.namespace["personal-tasks"], module.namespace["seven30-tasks"], module.namespace["qa-tasks"], module.namespace["cicada-tasks"]]
+  depends_on = [module.namespace["personal-tasks"], module.namespace["seven30-tasks"], module.namespace["qa-tasks"]]
 
   metadata {
     name      = "daimyo-gitlab-registry"
@@ -995,11 +997,9 @@ resource "helm_release" "daimyo" {
     module.namespace["org-personal"],
     module.namespace["org-seven30"],
     module.namespace["org-qa"],
-    module.namespace["org-cicada"],
     module.namespace["personal-tasks"],
     module.namespace["seven30-tasks"],
     module.namespace["qa-tasks"],
-    module.namespace["cicada-tasks"],
     kubernetes_secret_v1.daimyo_registry,
     kubernetes_secret_v1.daimyo_tasks_registry,
     kubernetes_secret_v1.daimyo_postgres,
@@ -1197,7 +1197,6 @@ resource "helm_release" "daimyo" {
       { name = "personal" },
       { name = "seven30" },
       { name = "qa" },
-      { name = "cicada" },
     ]
     # The chart's pre-upgrade hook migrates before any server pod rolls
     # (d58a660): `serve --roles none --migrate` with only the DB secrets, no
@@ -1708,7 +1707,7 @@ resource "kubectl_manifest" "daimyo_org" {
         # qa also trusts the memory eval's issuer (daimyo_memory_eval.tf): its
         # `sub` maps with the prefix `user:eval-`, so that key names only
         # `eval-…` persons.
-        issuers = concat(contains(["personal", "qa", "cicada"], each.key) ? [
+        issuers = concat(contains(["personal", "qa"], each.key) ? [
           merge(
             {
               issuer    = "https://auth.shdr.ch/realms/aether"
@@ -1716,7 +1715,7 @@ resource "kubectl_manifest" "daimyo_org" {
               principal = { claim = "preferred_username", prefix = "user:" }
               groups    = { claim = "groups" }
             },
-            contains(["personal", "cicada"], each.key) ? { requiredClaims = { preferred_username = "shdrch" } } : {},
+            each.key == "personal" ? { requiredClaims = { preferred_username = "shdrch" } } : {},
           ),
           ] : [], each.key == "qa" ? [{
             issuer    = local.memory_eval_issuer_url
@@ -1739,10 +1738,11 @@ resource "kubectl_manifest" "daimyo_org" {
         # the reconciler was refused 2-15 writer sessions an hour. Each writer
         # also holds a 3-CPU-limit CI sandbox, so the task namespace's
         # sandbox-large limits.cpu quota (32) fits seven writers.
+        # personal adds them to its 20 for Orion's threads and coordinators.
         quotas = merge(
           { concurrentTasks = 10 },
-          each.key == "personal" ? { concurrentSessions = 20 } : {},
-          contains(local.daimyo_cicada_orgs, each.key) ? { concurrentSessions = 10, concurrentTasks = 16 } : {},
+          each.key == "seven30" ? { concurrentSessions = 10, concurrentTasks = 16 } : {},
+          each.key == "personal" ? { concurrentSessions = 30, concurrentTasks = 26 } : {},
         )
         budget  = { monthlyUsd = 500 }
         storage = { bucket = "daimyo-${each.key}" }
@@ -1781,25 +1781,12 @@ resource "kubectl_manifest" "daimyo_org" {
           },
         ], local.daimyo_cicada_issuers)
       } : {},
-      # cicada: the operator (above) plus Cicada's machine principals. One
-      # issuer URL may appear twice; a prefix other than `user:` maps to a
-      # Service principal (daimyo-identity authenticator.rs).
-      each.key == "cicada" ? {
-        issuers = concat([
-          {
-            issuer         = "https://auth.shdr.ch/realms/aether"
-            audiences      = ["daimyo"]
-            principal      = { claim = "preferred_username", prefix = "user:" }
-            groups         = { claim = "groups" }
-            requiredClaims = { preferred_username = "shdrch" }
-          },
-        ], local.daimyo_cicada_issuers)
-      } : {},
-      # personal: the operator plus Orion's service account. Service tokens
-      # need both claims: `azp = orion` alone would also match the operator's
-      # tokens exchanged through Orion. Scope: policy `orion-service`.
+      # personal: the operator, Orion's service account and Cicada's machine
+      # principals. Orion's tokens need both claims: `azp = orion` alone would
+      # also match the operator's tokens exchanged through Orion. Scope:
+      # policy `orion-service`.
       each.key == "personal" ? {
-        issuers = [
+        issuers = concat([
           {
             issuer         = "https://auth.shdr.ch/realms/aether"
             audiences      = ["daimyo"]
@@ -1813,7 +1800,7 @@ resource "kubectl_manifest" "daimyo_org" {
             principal      = { claim = "azp", prefix = "svc:" }
             requiredClaims = { azp = "orion", preferred_username = "service-account-orion" }
           },
-        ]
+        ], local.daimyo_cicada_issuers)
       } : {},
       # personal: per-agent GitLab identities over the org's group grants and
       # the read-only `dev` ServiceAccount kubernetes grants bind. `values()`
@@ -1838,13 +1825,6 @@ resource "kubectl_manifest" "daimyo_org" {
           externalAgents = {
             allowedHosts = ["deskplane-mcp.deskplane.svc", "litellm.litellm.svc.cluster.local", "meridian.${local.meridian_namespace}.svc.cluster.local"]
           }
-        }
-        # cicada: every commit its agents make records one author (daimyo
-        # sets GIT_AUTHOR_* and GIT_COMMITTER_* from it, overriding whatever
-        # git config a writer writes). Without it writers picked their own,
-        # and on 2026-11-26 one copied the operator's identity from `git log`.
-        cicada = {
-          git = { author = { name = "Cicada", email = "cicada@noreply.shdr.ch" } }
         }
       } : name => extra if name == each.key })...
     )
@@ -2150,31 +2130,6 @@ resource "kubectl_manifest" "daimyo_cicada_policy" {
   })
 }
 
-moved {
-  from = kubectl_manifest.daimyo_cicada_policy["service-agents"]
-  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-agents"]
-}
-moved {
-  from = kubectl_manifest.daimyo_cicada_policy["service-sandboxes"]
-  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-sandboxes"]
-}
-moved {
-  from = kubectl_manifest.daimyo_cicada_policy["service-sessions"]
-  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-sessions"]
-}
-moved {
-  from = kubectl_manifest.daimyo_cicada_policy["service-tasks"]
-  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-tasks"]
-}
-moved {
-  from = kubectl_manifest.daimyo_cicada_policy["service-artifacts"]
-  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-artifacts"]
-}
-moved {
-  from = kubectl_manifest.daimyo_cicada_policy["service-projects"]
-  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-projects"]
-}
-
 # `model-allowlist`: a live Agent whose model grant is the set API-managed
 # Cicada agents may grant (daimyo-api managed.rs unions spec.grants[].model.models
 # over the org's live Agents), in every Cicada org. Never invoked.
@@ -2203,11 +2158,6 @@ resource "kubectl_manifest" "daimyo_cicada_model_allowlist" {
       ]
     }
   })
-}
-
-moved {
-  from = kubectl_manifest.daimyo_cicada_model_allowlist
-  to   = kubectl_manifest.daimyo_cicada_model_allowlist["cicada"]
 }
 
 # Skills Cicada's API-managed writers load (cicada.tf `[agents] skills`).
@@ -2244,11 +2194,6 @@ resource "kubectl_manifest" "daimyo_cicada_skills" {
   })
 }
 
-moved {
-  from = kubectl_manifest.daimyo_cicada_skills
-  to   = kubectl_manifest.daimyo_cicada_skills["cicada"]
-}
-
 # Cicada's ci_exec sandboxes (each repository workflow's `[ci]
 # sandbox_class`). Each repository owns its image: its pipeline publishes
 # `<repo>/ci:<commit sha>`, and Cicada names the digest per sandbox (daimyo
@@ -2282,22 +2227,14 @@ resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
   })
 }
 
-moved {
-  from = kubectl_manifest.daimyo_cicada_sandbox_class["seven30"]
-  to   = kubectl_manifest.daimyo_cicada_sandbox_class["cicada/seven30"]
-}
-moved {
-  from = kubectl_manifest.daimyo_cicada_sandbox_class["so"]
-  to   = kubectl_manifest.daimyo_cicada_sandbox_class["cicada/so"]
-}
-
 locals {
   # Shared by every repository of a group (Cicada decision 123): an
   # `imageRepository` ending in `/` admits each repository's own per-commit
   # image under it. A building sandbox measured ~1.5 CPU and ~0.5Gi and near
   # zero between ci_exec calls (molecule, 2026-10-29), so `requests` is what
   # is reserved and the limits are what a build may burst to; limits stay at
-  # 3 CPU because the cicada-tasks quota caps limits.cpu at 32, and the
+  # 3 CPU against the task namespaces' quotas (sandbox-large in seven30-tasks,
+  # sandbox-dev in personal-tasks), and the
   # workspace is daimyo's 20Gi maximum. A repository outside group `so` is
   # shared with `so` as Maintainer so Cicada's group tokens reach it.
   daimyo_cicada_sandbox_classes = {

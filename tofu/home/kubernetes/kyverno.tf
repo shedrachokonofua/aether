@@ -1350,20 +1350,25 @@ locals {
 
   # personal-tasks runs dev-agent sessions (4 CPU / 8Gi limits, spec §18.1)
   # beside orion's, coordinator and trip-planner sessions (2 CPU / 2Gi), each
-  # plus a 500m / 256Mi sidecar. Sized for the personal org's 20 hot sessions
-  # (daimyo.tf concurrentSessions) plus one-shot tasks: ~17 x 2.5 CPU / 2.25Gi
-  # and ~3 x 4.5 CPU / 8.25Gi limits, ~0.85Gi request each. Measured
-  # 2026-10-31: idle session pods use ~300Mi; limits are overcommit only.
+  # plus a 500m / 256Mi sidecar, sized for 20 hot sessions plus one-shot
+  # tasks: ~17 x 2.5 CPU / 2.25Gi and ~3 x 4.5 CPU / 8.25Gi limits, ~0.85Gi
+  # request each (measured 2026-10-31: idle session pods use ~300Mi; limits
+  # are overcommit only). Cicada's work on the operator's repositories runs
+  # there too since the cicada org was removed (2026-11-28), so it adds the
+  # sandbox-large budget on top.
   # Bump personal-tasks' aether.shdr.ch/quota-rev with any change here.
   namespace_resourcequota_sandbox_dev = merge(local.namespace_resourcequota_sandbox, {
-    "requests.memory" = "24Gi"
-    "limits.cpu"      = "64"
-    "limits.memory"   = "80Gi"
-    "pods"            = "30"
+    "requests.cpu"           = "28"
+    "requests.memory"        = "64Gi"
+    "limits.cpu"             = "96"
+    "limits.memory"          = "144Gi"
+    "requests.storage"       = "400Gi"
+    "persistentvolumeclaims" = "20"
+    "pods"                   = "60"
   })
 
   # Sandbox namespaces that run builds, selected by the namespace label
-  # aether.shdr.ch/quota-profile = sandbox-large (cicada-tasks: Cicada's
+  # aether.shdr.ch/quota-profile = sandbox-large (seven30-tasks: Cicada's
   # writers, review lenses and ci_exec build sandboxes, which request their
   # whole cpu/memory).
   namespace_resourcequota_sandbox_large = {

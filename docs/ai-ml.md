@@ -848,17 +848,19 @@ before deployment selection.
 #### Model access per org (LiteLLM teams)
 
 Which models a caller may reach is a LiteLLM team's model list; Moira holds
-no org config. Chain: Cicada is one daimyo org (`[daimyo] org`), each daimyo
-org in `daimyo_litellm_team_orgs` (`daimyo.tf`) sets `Org.spec.litellm.team`
-to its own name, and daimyo mints that org's model keys in that team. Long-lived
-keys join a team by alias (`litellm_team_keys`: `seven30`, `seven30-foundry`).
-Teams and their lists live in `register_litellm_virtual_keys.yml`
-(`litellm_teams`, `--tags teams`): `cicada` and `seven30` get every model but
-the operator's Claude, ChatGPT and Muse subscriptions, and no `moira/frontier`.
-For a team key the `moira_router` hook sends Moira only the team's concrete
-names (`_team_bound`), so `moira/strong` routes among the team's members; it
-never fails open to a tier alias's static default and drops out-of-team
-fallbacks. Keys without a team behave as before.
+no org config. Daimyo orgs are owners (`personal`, `seven30`; `qa` for
+daimyo's own tests) and tools such as Cicada and Orion act inside them. Each
+daimyo org in `daimyo_litellm_team_orgs` (`daimyo.tf`, today `seven30`) sets
+`Org.spec.litellm.team` to its own name, and daimyo mints that org's model
+keys in that team, Cicada's included. Long-lived keys join a team by alias
+(`litellm_team_keys`: `seven30`, `seven30-foundry`). Teams and their lists
+live in `register_litellm_virtual_keys.yml` (`litellm_teams`, `--tags
+teams`): `seven30` gets every model but the operator's Claude, ChatGPT and
+Muse subscriptions, and no `moira/frontier`. For a team key the
+`moira_router` hook sends Moira only the team's concrete names
+(`_team_bound`), so `moira/strong` routes among the team's members; it never
+fails open to a tier alias's static default and drops out-of-team
+fallbacks. Keys without a team (the `personal` org's) behave as before.
 
 ### Moira
 
