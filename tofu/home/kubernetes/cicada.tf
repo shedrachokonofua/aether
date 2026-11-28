@@ -58,7 +58,10 @@ locals {
   # daimyo org, and people see the orgs daimyo admits them to (decision
   # 125). Needs the [daimyo] default_org/group_orgs config below and
   # daimyo d57b88f4 (GET /v1/me/orgs). No migration.
-  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:6a9c79723c7963811f53d151e1c1b309fe308797c5becff6710ad81e9af03e49"
+  # f365b3b (main pipeline green): a session or task daimyo answers 404 for
+  # (the removed cicada org's) reads as ended, so its writer or planner is
+  # replaced in the repository's org. No migration.
+  cicada_image = "registry.gitlab.home.shdr.ch/so/cicada@sha256:9a4b1d355bd4f3544d694faea2256366762dba39e6bf6675d5557f349bcb6b11"
 
   cicada_ns            = module.namespace["cicada"].name
   cicada_host          = "cicada.home.shdr.ch"
