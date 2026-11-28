@@ -42,6 +42,40 @@ resource "google_compute_instance" "uptime_monitor" {
   }
 }
 
+# Ingress for vigilant. The instance sits on the project's default network,
+# whose stock rules admit SSH, RDP and ICMP from anywhere and everything from
+# 10.128.0.0/9. These two rules outrank them (default rules are 65534) for the
+# `uptime-monitor` tag only: SSH stays open (Ansible reaches the host on its
+# public address), everything else inbound is dropped. Nothing else needs to
+# come in: vigilant dials out to link for WireGuard and to Cloudflare for the
+# status-page tunnel, and replies to those are tracked connections.
+resource "google_compute_firewall" "uptime_monitor_ssh" {
+  name          = "aether-uptime-monitor-allow-ssh"
+  network       = "default"
+  direction     = "INGRESS"
+  priority      = 900
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["uptime-monitor"]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+}
+
+resource "google_compute_firewall" "uptime_monitor_deny_ingress" {
+  name          = "aether-uptime-monitor-deny-ingress"
+  network       = "default"
+  direction     = "INGRESS"
+  priority      = 1000
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["uptime-monitor"]
+
+  deny {
+    protocol = "all"
+  }
+}
+
 output "uptime_monitor_ip" {
   value       = google_compute_instance.uptime_monitor.network_interface[0].access_config[0].nat_ip
   description = "Public IP of the uptime monitor VM"
