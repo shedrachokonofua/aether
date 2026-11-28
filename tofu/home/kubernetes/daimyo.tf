@@ -580,6 +580,11 @@ locals {
   # so key minting succeeds even though echo never calls the model.
   daimyo_echo_model = "moira/flash"
   daimyo_orgs       = toset(["personal", "seven30", "qa", "cicada"])
+  # Orgs whose model keys daimyo mints in the LiteLLM team of the same name
+  # (Org spec.litellm.team): the team's model list bounds what they reach,
+  # and Moira routes their tier requests inside it (litellm_hooks.py
+  # _team_bound). Teams: register_litellm_virtual_keys.yml litellm_teams.
+  daimyo_litellm_team_orgs = ["cicada", "seven30"]
   # Orgs whose tasks reach Deskplane's REST API, MCP server and workload
   # tunnel (daimyo_tasks_egress and deskplane_mcp_daimyo_ingress).
   daimyo_deskplane_orgs = ["personal", "qa", "seven30"]
@@ -1730,6 +1735,7 @@ resource "kubectl_manifest" "daimyo_org" {
         storage = { bucket = "daimyo-${each.key}" }
         secrets = { openbaoPath = "orgs/${each.key}" }
       },
+      contains(local.daimyo_litellm_team_orgs, each.key) ? { litellm = { team = each.key } } : {},
       each.key == "seven30" ? {
         issuers = [
           {

@@ -366,10 +366,9 @@ def scenario_parallel_done_only_arguments():
         f"parallel args: done-only calls get their arguments, the delta-streamed one exactly once, got {calls}")
 
 
-def scenario_org_exclusion():
-    print("org exclusion: one org's keys never reach an excluded prefix; every other key is unchanged")
+def scenario_team_bound():
+    print("team bound: a team key reaches only its team's concrete models; keys without a team are unchanged")
     import asyncio
-    import os
 
     import httpx
     import litellm
@@ -377,7 +376,6 @@ def scenario_org_exclusion():
     from litellm.proxy import proxy_server
     from litellm.proxy._types import UserAPIKeyAuth
 
-    os.environ["MOIRA_ORG_EXCLUDED_PREFIXES"] = "other=test/x-;cicada=test/claude-"
     sys.path.insert(0, "/tmp/hooks")
     import aether_hooks
 
@@ -396,11 +394,13 @@ def scenario_org_exclusion():
                 raise RuntimeError("moira down")
             return httpx.Response(200, json=self.answer)
 
-    def call(org, answer):
+    team = {"team_id": "cicada", "team_models": ["moira/frontier", "router/pool", "test/gpt", "test/kimi"]}
+
+    def call(answer, key_models=("moira/frontier",), **key_fields):
         aether_hooks._LAST_ROUTE.clear()
         moira = Moira(answer)
         aether_hooks._moira_client = moira
-        key = UserAPIKeyAuth(models=["moira/frontier"], metadata={"org": org, "agent": "planner-1"})
+        key = UserAPIKeyAuth(models=list(key_models), **key_fields)
         data = {"model": "moira/frontier", "messages": [{"role": "user", "content": "hi"}]}
         try:
             asyncio.run(aether_hooks.moira_router.async_pre_call_hook(key, None, data, "acompletion"))
@@ -410,28 +410,35 @@ def scenario_org_exclusion():
         return outcome, moira.payloads, data
 
     route = {"action": "route", "model": "test/gpt", "fallbacks": ["test/claude-opus", "test/kimi"]}
-    outcome, payloads, data = call("cicada", route)
+    outcome, payloads, data = call(route, **team)
     check(payloads and payloads[0]["allowed_models"] == ["test/gpt", "test/kimi"],
-          f"org exclusion: cicada's allowlist is every concrete model except the prefix, got {payloads}")
+          f"team bound: Moira gets the team's concrete models, no tier names, got {payloads}")
     check(outcome == "ok" and data["model"] == "test/gpt" and data.get("fallbacks") == ["test/kimi"],
-          f"org exclusion: cicada routes and keeps only allowed fallbacks, got {outcome} {data}")
+          f"team bound: routes and keeps only in-team fallbacks, got {outcome} {data}")
 
-    outcome, payloads, data = call("personal", route)
+    _, payloads, _ = call(route, key_models=("moira/frontier", "test/kimi"), **team)
+    check(payloads and payloads[0]["allowed_models"] == ["test/kimi"],
+          f"team bound: concrete names on the key narrow the team, got {payloads}")
+
+    outcome, payloads, data = call(route)
     check(payloads and payloads[0]["allowed_models"] == ["moira/frontier"],
-          f"org exclusion: another org's decide payload is unchanged, got {payloads}")
+          f"team bound: a key without a team sends its list unchanged, got {payloads}")
     check(data.get("fallbacks") == ["test/claude-opus", "test/kimi"],
-          f"org exclusion: another org keeps Moira's fallbacks, got {data}")
+          f"team bound: a key without a team keeps Moira's fallbacks, got {data}")
 
-    outcome, _, data = call("cicada", None)
+    outcome, payloads, _ = call(route, team_id="personal", team_models=[])
+    check(payloads and payloads[0]["allowed_models"] == ["moira/frontier"],
+          f"team bound: an unrestricted team is unbounded, got {payloads}")
+
+    outcome, _, data = call(None, **team)
     check(outcome == 503 and data["model"] == "moira/frontier",
-          f"org exclusion: cicada never fails open to the static alias, got {outcome} {data}")
-    outcome, _, data = call("personal", None)
+          f"team bound: a team key never fails open to the static alias, got {outcome} {data}")
+    outcome, _, data = call(None)
     check(outcome == "ok" and data["model"] == "moira/frontier",
-          f"org exclusion: another org still fails open, got {outcome} {data}")
+          f"team bound: a key without a team still fails open, got {outcome} {data}")
 
-    outcome, _, _ = call("cicada", {"action": "route", "model": "test/claude-opus", "fallbacks": []})
-    check(outcome == 503, f"org exclusion: an excluded route is refused, got {outcome}")
-    del os.environ["MOIRA_ORG_EXCLUDED_PREFIXES"]
+    outcome, _, _ = call({"action": "route", "model": "test/claude-opus", "fallbacks": []}, **team)
+    check(outcome == 503, f"team bound: a route outside the team is refused, got {outcome}")
 
 
 def main():
@@ -446,7 +453,7 @@ def main():
     scenario_filter_late()
     scenario_filter_nonstream()
     scenario_filter_unrouted()
-    scenario_org_exclusion()
+    scenario_team_bound()
     scenario_parallel_done_only_arguments()
     if failures:
         print(f"\n{len(failures)} assertion(s) FAILED", file=sys.stderr)
