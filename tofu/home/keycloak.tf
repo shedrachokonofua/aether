@@ -2392,6 +2392,18 @@ resource "keycloak_openid_client_default_scopes" "meridian_mcp_default_scopes" {
     # kept alive by use.
     "offline_access",
   ]
+
+  depends_on = [keycloak_openid_client_optional_scopes.meridian_mcp_optional_scopes]
+}
+
+# Keycloak attaches offline_access to every new client as an optional scope and
+# refuses to make it a default while it is one, so the optional list is stated
+# here without it.
+resource "keycloak_openid_client_optional_scopes" "meridian_mcp_optional_scopes" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.meridian_mcp.id
+
+  optional_scopes = ["address", "phone", "microprofile-jwt"]
 }
 
 # Meridian tells a source that needs it who is calling by token exchange
