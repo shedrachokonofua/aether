@@ -27,7 +27,8 @@
     - [x] VyOS `CLOUD-to-TRUSTED` rule 30 and the link hub forward allow vigilant to home Caddy on `9443` only (applied 2026-11-27; 443 times out from vigilant)
     - [ ] VyOS accepts `10.1/16`, `10.2/16` and `10.3/16` from the single link WireGuard peer, so link can source as vigilant or rama; split peers or filter by source
     - [ ] Close public SSH on link (`tofu/aws/public-gateway.tf:22-28`) and rama (`tofu/oci/main.tf:95-103`); manage both over WireGuard
-    - [ ] Declare a firewall and dedicated network for vigilant (none in tofu; GCP default-network rules unverified)
+    - [x] vigilant has a declared firewall (applied 2026-11-28): tag-scoped allow tcp/22 and deny-all ingress outrank the default-network rules, which admitted SSH, RDP and ICMP from anywhere
+    - [ ] Move vigilant off the GCP default network (needs an instance stop) and drop the unused `default-allow-rdp` rule
   - [ ] Kubernetes east-west: baseline has `enableDefaultDeny` false and 71 of 99 namespaces have no policy
     - [ ] Default-deny for the public apps first: jellyfin, nextcloud, openwebui
     - [ ] Then vaultwarden, gitlab-runner, kestra, kube-system
