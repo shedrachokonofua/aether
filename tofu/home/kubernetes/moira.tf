@@ -11,10 +11,10 @@
 # the LiteLLM model_list).
 
 locals {
-  # 4ca6aec (moira main): GLM-5.4 scored at GLM-5.3's max (estimate) on
-  # cfe0807 (members run at request effort, else tiers.yaml effort_defaults).
-  # CI pipeline 18084 passed before this digest was selected.
-  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:78de787e6d1443552bb45b028ddbf993f80f3e1d6b4d3aa96bcbe86bab60859d"
+  # f9055c0 (moira main): polls Seven30's Z.AI Coding Plan as provider
+  # zai-seven30 (ZAI_SEVEN30_API_KEY). CI pipeline 19203 passed before this
+  # digest was selected.
+  moira_image = "registry.gitlab.home.shdr.ch/so/moira@sha256:114099680464664635f6d7db3ffae85d740e12f9720fbbcaeb8b2f5fd5f49f49"
 
   moira_ns                  = local.litellm_ns
   moira_labels              = { app = "moira" }
