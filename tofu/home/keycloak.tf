@@ -2386,6 +2386,11 @@ resource "keycloak_openid_client_default_scopes" "meridian_mcp_default_scopes" {
     "email",
     "roles",
     keycloak_openid_client_scope.meridian_mcp.name,
+    # A default, not optional, scope: MCP clients do not ask for it. Without it
+    # the refresh token dies with the SSO session (2h idle, 12h at most) and the
+    # client must sign in again; with it the refresh token is an offline one,
+    # kept alive by use.
+    "offline_access",
   ]
 }
 
