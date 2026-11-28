@@ -3,5 +3,5 @@
 # main:latest and Keel rolls each new digest. Bump this SHA when a main commit
 # changes the chart; see docs/orion.md.
 locals {
-  orion_release = "194f6d9d127e6e135a56eda3176269b7986e26b3"
+  orion_release = "04a6e2cfbbab0c261d6b42422b52c45c2e81568d"
 }

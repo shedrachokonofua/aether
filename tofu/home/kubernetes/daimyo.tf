@@ -367,7 +367,14 @@ locals {
   # (daimyo_org_crd first), no migration: `Org.spec.git.author` sets
   # GIT_AUTHOR_* and GIT_COMMITTER_* on an orgToken org's task and session
   # pods, so every commit its agents make records that one author.
-  daimyo_server_tag = "sha256:1090941d196ef716e6a8ca4f4dbddefa6474a3b449300c6fc8255513e7fa8687"
+  # d57b88f4 (main pipeline 19231, fmt/clippy/build/helm-test/rust-test/
+  # rust-test-engine/ts-test/python-test/build:daimyo-server/build:harness-strands
+  # green). Server, Agent CRD (daimyo_agent_crd first) and Org CRD
+  # (daimyo_org_crd first), no migration: adds `HarnessKind::Strands`
+  # (`kind: strands`), `systemPromptMode: "replace"` (omp & strands) and
+  # `harness.timezone`, plus `d05b3afe`/`7b97a421` (`Org.spec.litellm.team`,
+  # `GET /v1/me/orgs`).
+  daimyo_server_tag = "sha256:f23cae42efb8192ae88bd18d06e1c53c85434bb271f1ae651c19dd7ebdcb3e43"
   # Sidecar c151904 (main pipeline 9177): x-session-id on model calls
   # (ac0aaf3, previously released alone as sidecar-1030a), background-job
   # origin identities, and the `agents` server's `background` argument.
@@ -547,6 +554,14 @@ locals {
   # task's MCP tools from the shell (`tool list|describe|call`, key=@path,
   # --to PATH). omp-dev is not moved: its image needs an attestation.
   daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:298d179a27d1ee8b63c6b58d8dd0fb78dcc489c3ce50326c01e30106513781c9"
+  # strands d57b88f4 (main pipeline 19231 build:harness-strands; verify stage ran
+  # 11/11 tests on Bun + @strands-agents/harness@0.6.0 + @strands-agents/sdk@1.27.0):
+  # in-process AWS Strands runner with Monty Python programmatic_tool_caller,
+  # native MCP outputSchema + annotations (readOnlyHint:false FIFO queue),
+  # chunked image eviction, systemPromptMode: replace, timezone, AgentSkills,
+  # SessionManager + cold history replay, DAIMYO_PERMISSION_URL intervention,
+  # and daimyo/jobs handshake + completionNotice delivery.
+  daimyo_harness_strands_image         = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-strands@sha256:30e792ab767a7a7278bbecf9d798239ac50e52d2e80ce3614caafb29d1005045"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev 2849969 (main pipeline 14169 build:harness-omp-dev): the dev
   # toolchains layered on the omp harness above, so `dev` gets omp 18.22.2,
@@ -1103,6 +1118,7 @@ resource "helm_release" "daimyo" {
         images = {
           "claude-code"     = local.daimyo_harness_claude_code_image
           "omp"             = local.daimyo_harness_omp_image
+          "strands"         = local.daimyo_harness_strands_image
           "workflow-runner" = local.daimyo_harness_workflow_runner_image
         }
       }

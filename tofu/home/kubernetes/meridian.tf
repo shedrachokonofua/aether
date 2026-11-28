@@ -181,7 +181,7 @@ locals {
     "trace_waterfall", "trace_top_time_consuming_operations",
   ]
   # so/orion commit whose chart skills are served.
-  meridian_orion_skills_commit = "39778d5bb16af53e11f3053e77efc026503db13b"
+  meridian_orion_skills_commit = "04a6e2cfbbab0c261d6b42422b52c45c2e81568d"
 
   meridian_config = {
     # Where a person lands after signing a source in, and where the sign-ins
