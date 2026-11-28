@@ -2097,8 +2097,10 @@ resource "keycloak_openid_audience_protocol_mapper" "cicada_audience" {
 
 # The operator's sign-in to Cicada: the web UI (authorization code + PKCE)
 # and the CLI (`cicada login`, device grant). Public client; its access
-# tokens carry aud=cicada so Cicada's API verifier accepts them, and Cicada
-# admits only the preferred_username values it is configured with.
+# tokens carry aud=cicada so Cicada's API verifier accepts them, and
+# aud=daimyo plus realm roles in `groups`: Cicada forwards the token to
+# daimyo's GET /v1/me/orgs, and the orgs it lists are what the person sees
+# (a seven30-developer reaches org seven30, daimyo.tf).
 resource "keycloak_openid_client" "cicada_operator" {
   realm_id  = keycloak_realm.aether.id
   client_id = "cicada-operator"
@@ -2151,10 +2153,31 @@ resource "keycloak_openid_audience_protocol_mapper" "cicada_operator_audience" {
   add_to_access_token      = true
 }
 
-# Automation operator for Cicada's API: client credentials, aud=cicada. Its
-# service account (preferred_username service-account-cicada-automation) is
-# listed in Cicada's [auth] operators, so scripts and agents acting for the
-# operator can open goals and answer Questions without a browser sign-in.
+resource "keycloak_openid_audience_protocol_mapper" "cicada_operator_daimyo_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.cicada_operator.id
+  name      = "daimyo-audience"
+
+  included_client_audience = keycloak_openid_client.daimyo.client_id
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_user_realm_role_protocol_mapper" "cicada_operator_groups" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.cicada_operator.id
+  name      = "groups"
+
+  claim_name          = "groups"
+  multivalued         = true
+  add_to_id_token     = false
+  add_to_access_token = true
+  add_to_userinfo     = false
+}
+
+# Automation operator for Cicada's API: client credentials, aud=cicada and
+# aud=daimyo. Its Service principal `svc:cicada-automation` is admitted to the
+# orgs Cicada works in (daimyo.tf), so scripts and agents acting for the
+# operator can open goals and answer Questions there without a browser sign-in.
 # The secret is home output keycloak_cicada_automation_client_secret.
 resource "keycloak_openid_client" "cicada_automation" {
   realm_id  = keycloak_realm.aether.id
@@ -2175,6 +2198,15 @@ resource "keycloak_openid_audience_protocol_mapper" "cicada_automation_audience"
   name      = "cicada-audience"
 
   included_client_audience = keycloak_openid_client.cicada.client_id
+  add_to_access_token      = true
+}
+
+resource "keycloak_openid_audience_protocol_mapper" "cicada_automation_daimyo_audience" {
+  realm_id  = keycloak_realm.aether.id
+  client_id = keycloak_openid_client.cicada_automation.id
+  name      = "daimyo-audience"
+
+  included_client_audience = keycloak_openid_client.daimyo.client_id
   add_to_access_token      = true
 }
 

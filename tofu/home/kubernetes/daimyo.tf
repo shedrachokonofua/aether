@@ -585,6 +585,19 @@ locals {
   # and Moira routes their tier requests inside it (litellm_hooks.py
   # _team_bound). Teams: register_litellm_virtual_keys.yml litellm_teams.
   daimyo_litellm_team_orgs = ["cicada", "seven30"]
+  # Orgs Cicada works in: their issuers admit svc:cicada and the automation
+  # client, svc:cicada gets daimyo_cicada_policy there, and their task pods
+  # reach Cicada's MCP and its build hosts.
+  daimyo_cicada_orgs = ["cicada", "seven30"]
+  # Cicada's machine principals, as issuer entries every Cicada org trusts.
+  daimyo_cicada_issuers = [
+    for azp in ["cicada", "cicada-automation"] : {
+      issuer         = "https://auth.shdr.ch/realms/aether"
+      audiences      = ["daimyo"]
+      principal      = { claim = "azp", prefix = "svc:" }
+      requiredClaims = { azp = azp }
+    }
+  ]
   # Orgs whose tasks reach Deskplane's REST API, MCP server and workload
   # tunnel (daimyo_tasks_egress and deskplane_mcp_daimyo_ingress).
   daimyo_deskplane_orgs = ["personal", "qa", "seven30"]
@@ -1409,14 +1422,14 @@ resource "kubernetes_manifest" "daimyo_tasks_egress" {
             }
           }]
           toPorts = [{ ports = [{ port = "8080", protocol = "TCP" }] }]
-        } if org == "cicada"
+        } if contains(local.daimyo_cicada_orgs, org)
         ], [
         # Cicada's ci_exec sandboxes fetch crates, Go modules and pinned
         # tools (local.daimyo_cicada_build_fqdns).
         for org in [each.key] : {
           toFQDNs = [for host in local.daimyo_cicada_build_fqdns : { matchName = host }]
           toPorts = [{ ports = [{ port = "443", protocol = "TCP" }] }]
-        } if org == "cicada"
+        } if contains(local.daimyo_cicada_orgs, org)
         ], [
         # The dev agent's package registries and toolchain downloads
         # (local.daimyo_personal_build_fqdns) need HTTPS as well as the DNS
@@ -1719,17 +1732,17 @@ resource "kubectl_manifest" "daimyo_org" {
         # personal: 20 hot sessions (default 5). Orion threads, coordinators,
         # dev, trip-planner, rogue and Orion's spare session share the cap; at
         # 5 the LRU eviction put threads idle 1-4 min cold.
-        # cicada: 10 sessions, 16 tasks (2026-11-22). seven30/buyerfact runs
-        # five writers and seven30/beacon two, with a planner each; reviewer
-        # runs are tasks on top of the writers' and planners' turns. It was 8
-        # sessions from earlier the same day and 5 before that, when the
-        # reconciler was refused 2-15 writer sessions an hour. Each writer also
-        # holds a 3-CPU-limit CI sandbox, so cicada-tasks' limits.cpu quota
-        # (32) fits seven writers.
+        # Cicada orgs: 10 sessions, 16 tasks (2026-11-22). seven30/buyerfact
+        # runs five writers and seven30/beacon two, with a planner each;
+        # reviewer runs are tasks on top of the writers' and planners' turns.
+        # It was 8 sessions from earlier the same day and 5 before that, when
+        # the reconciler was refused 2-15 writer sessions an hour. Each writer
+        # also holds a 3-CPU-limit CI sandbox, so the task namespace's
+        # sandbox-large limits.cpu quota (32) fits seven writers.
         quotas = merge(
           { concurrentTasks = 10 },
           each.key == "personal" ? { concurrentSessions = 20 } : {},
-          each.key == "cicada" ? { concurrentSessions = 10, concurrentTasks = 16 } : {},
+          contains(local.daimyo_cicada_orgs, each.key) ? { concurrentSessions = 10, concurrentTasks = 16 } : {},
         )
         budget  = { monthlyUsd = 500 }
         storage = { bucket = "daimyo-${each.key}" }
@@ -1737,7 +1750,7 @@ resource "kubectl_manifest" "daimyo_org" {
       },
       contains(local.daimyo_litellm_team_orgs, each.key) ? { litellm = { team = each.key } } : {},
       each.key == "seven30" ? {
-        issuers = [
+        issuers = concat([
           {
             issuer    = "https://auth.shdr.ch/realms/seven30"
             audiences = ["daimyo"]
@@ -1750,13 +1763,15 @@ resource "kubectl_manifest" "daimyo_org" {
             principal      = { claim = "project_path", prefix = "ci:" }
             requiredClaims = { namespace_path = "seven30*" }
           },
-        ]
-      } : {},
-      # cicada: the operator (above) plus the cicada service account. One
-      # issuer URL may appear twice; a prefix other than `user:` maps to a
-      # Service principal (daimyo-identity authenticator.rs).
-      each.key == "cicada" ? {
-        issuers = [
+          # Aether-realm sign-ins (Cicada's UI): Seven30 developers by realm
+          # role (an array claim: any element matches), and the operator.
+          {
+            issuer         = "https://auth.shdr.ch/realms/aether"
+            audiences      = ["daimyo"]
+            principal      = { claim = "preferred_username", prefix = "user:" }
+            groups         = { claim = "groups" }
+            requiredClaims = { groups = "seven30-developer" }
+          },
           {
             issuer         = "https://auth.shdr.ch/realms/aether"
             audiences      = ["daimyo"]
@@ -1764,13 +1779,21 @@ resource "kubectl_manifest" "daimyo_org" {
             groups         = { claim = "groups" }
             requiredClaims = { preferred_username = "shdrch" }
           },
+        ], local.daimyo_cicada_issuers)
+      } : {},
+      # cicada: the operator (above) plus Cicada's machine principals. One
+      # issuer URL may appear twice; a prefix other than `user:` maps to a
+      # Service principal (daimyo-identity authenticator.rs).
+      each.key == "cicada" ? {
+        issuers = concat([
           {
             issuer         = "https://auth.shdr.ch/realms/aether"
             audiences      = ["daimyo"]
-            principal      = { claim = "azp", prefix = "svc:" }
-            requiredClaims = { azp = "cicada" }
+            principal      = { claim = "preferred_username", prefix = "user:" }
+            groups         = { claim = "groups" }
+            requiredClaims = { preferred_username = "shdrch" }
           },
-        ]
+        ], local.daimyo_cicada_issuers)
       } : {},
       # personal: the operator plus Orion's service account. Service tokens
       # need both claims: `azp = orion` alone would also match the operator's
@@ -2089,14 +2112,15 @@ resource "kubectl_manifest" "daimyo_personal_task_policy" {
   })
 }
 
-# Org `cicada`: the cicada service account (Service principal `svc:cicada`,
-# entity uid Service::"svc:cicada", attributes name and sub both "svc:cicada")
-# writes Agents, creates a project for each repository it onboards (Cicada
-# decision 123) and drives sandboxes and sessions. The baseline already
-# permits a Service agent::read, task::read, task::cancel, session::create
-# and artifact::read; these cover the rest, and only this one principal.
-resource "kubectl_manifest" "daimyo_cicada_policy" {
-  for_each = {
+# Orgs Cicada works in (daimyo_cicada_orgs): the cicada service account
+# (Service principal `svc:cicada`, entity uid Service::"svc:cicada",
+# attributes name and sub both "svc:cicada") writes Agents, creates a project
+# for each repository it onboards (Cicada decision 123) and drives sandboxes
+# and sessions. The baseline already permits a Service agent::read,
+# task::read, task::cancel, session::create and artifact::read; these cover
+# the rest, and only this one principal.
+locals {
+  daimyo_cicada_policies = {
     "service-agents"    = "permit (principal == Service::\"svc:cicada\", action in [Action::\"agent::create\", Action::\"agent::update\", Action::\"agent::delete\", Action::\"agent::read\"], resource is Agent);"
     "service-sandboxes" = "permit (principal == Service::\"svc:cicada\", action in [Action::\"sandbox::create\", Action::\"sandbox::use\", Action::\"sandbox::delete\"], resource);"
     # session::create targets an Operation; use/read/close target the Session.
@@ -2105,24 +2129,57 @@ resource "kubectl_manifest" "daimyo_cicada_policy" {
     "service-artifacts" = "permit (principal == Service::\"svc:cicada\", action == Action::\"artifact::read\", resource is Artifact);"
     "service-projects"  = "permit (principal == Service::\"svc:cicada\", action == Action::\"project::create\", resource is Project);"
   }
+}
+
+resource "kubectl_manifest" "daimyo_cicada_policy" {
+  for_each = {
+    for pair in setproduct(local.daimyo_cicada_orgs, keys(local.daimyo_cicada_policies)) :
+    "${pair[0]}/${pair[1]}" => { org = pair[0], name = pair[1], text = local.daimyo_cicada_policies[pair[1]] }
+  }
   depends_on = [kubectl_manifest.daimyo_org]
 
   yaml_body = yamlencode({
     apiVersion = "daimyo.shdr.ch/v1alpha1"
     kind       = "Policy"
     metadata = {
-      name      = each.key
-      namespace = "org-cicada"
+      name      = each.value.name
+      namespace = "org-${each.value.org}"
       labels    = local.daimyo_cr_labels
     }
-    spec = { text = each.value }
+    spec = { text = each.value.text }
   })
+}
+
+moved {
+  from = kubectl_manifest.daimyo_cicada_policy["service-agents"]
+  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-agents"]
+}
+moved {
+  from = kubectl_manifest.daimyo_cicada_policy["service-sandboxes"]
+  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-sandboxes"]
+}
+moved {
+  from = kubectl_manifest.daimyo_cicada_policy["service-sessions"]
+  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-sessions"]
+}
+moved {
+  from = kubectl_manifest.daimyo_cicada_policy["service-tasks"]
+  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-tasks"]
+}
+moved {
+  from = kubectl_manifest.daimyo_cicada_policy["service-artifacts"]
+  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-artifacts"]
+}
+moved {
+  from = kubectl_manifest.daimyo_cicada_policy["service-projects"]
+  to   = kubectl_manifest.daimyo_cicada_policy["cicada/service-projects"]
 }
 
 # `model-allowlist`: a live Agent whose model grant is the set API-managed
 # Cicada agents may grant (daimyo-api managed.rs unions spec.grants[].model.models
-# over the org's live Agents). Never invoked.
+# over the org's live Agents), in every Cicada org. Never invoked.
 resource "kubectl_manifest" "daimyo_cicada_model_allowlist" {
+  for_each   = toset(local.daimyo_cicada_orgs)
   depends_on = [kubectl_manifest.daimyo_project]
 
   yaml_body = yamlencode({
@@ -2130,11 +2187,11 @@ resource "kubectl_manifest" "daimyo_cicada_model_allowlist" {
     kind       = "Agent"
     metadata = {
       name      = "model-allowlist"
-      namespace = "org-cicada"
+      namespace = "org-${each.key}"
       labels    = local.daimyo_cr_labels
     }
     spec = {
-      project     = "cicada"
+      project     = each.key
       description = "Exists only so API-managed Cicada agents may grant these models. Never invoked."
       harness = {
         kind  = "omp"
@@ -2148,12 +2205,18 @@ resource "kubectl_manifest" "daimyo_cicada_model_allowlist" {
   })
 }
 
+moved {
+  from = kubectl_manifest.daimyo_cicada_model_allowlist
+  to   = kubectl_manifest.daimyo_cicada_model_allowlist["cicada"]
+}
+
 # Skills Cicada's API-managed writers load (cicada.tf `[agents] skills`).
 # security-audit is Cloudflare's skill, vendored unmodified at
 # c1c8a8c1471069fb0e188eeaff69b8e8db6564a8 under cicada-skills/ (MIT; the
 # validators' own tests left out). Versions are append-only (daimyo P2): to
 # change the files, add version 2 next to 1 and bump the version Cicada pins.
 resource "kubectl_manifest" "daimyo_cicada_skills" {
+  for_each   = toset(local.daimyo_cicada_orgs)
   depends_on = [kubectl_manifest.daimyo_project]
   # ~300 KB: over the 256 KB last-applied annotation client-side apply keeps.
   server_side_apply = true
@@ -2164,7 +2227,7 @@ resource "kubectl_manifest" "daimyo_cicada_skills" {
     kind       = "ConfigBundle"
     metadata = {
       name      = "cicada-skills"
-      namespace = "org-cicada"
+      namespace = "org-${each.key}"
       labels    = local.daimyo_cr_labels
     }
     spec = {
@@ -2181,25 +2244,33 @@ resource "kubectl_manifest" "daimyo_cicada_skills" {
   })
 }
 
+moved {
+  from = kubectl_manifest.daimyo_cicada_skills
+  to   = kubectl_manifest.daimyo_cicada_skills["cicada"]
+}
+
 # Cicada's ci_exec sandboxes (each repository workflow's `[ci]
 # sandbox_class`). Each repository owns its image: its pipeline publishes
 # `<repo>/ci:<commit sha>`, and Cicada names the digest per sandbox (daimyo
 # 8ecf6f4 `imageRepository`; Cicada decision 57). A class holds only the
-# allowed image repository and the size, against cicada-tasks' sandbox-tier
-# quota. Classes are shared, one per kind of sandbox (Cicada decision 123):
-# an `imageRepository` ending in `/` admits every repository under that path,
-# so a new repository in group `seven30` or `so` names its group's class and
-# needs nothing here.
+# allowed image repository and the size, against the task namespace's
+# sandbox-large quota. Classes are shared, one per kind of sandbox (Cicada
+# decision 123), and exist in every Cicada org: an `imageRepository` ending
+# in `/` admits every repository under that path, so a new repository in
+# group `seven30` or `so` names its group's class and needs nothing here.
 resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
-  for_each   = local.daimyo_cicada_sandbox_classes
+  for_each = {
+    for pair in setproduct(local.daimyo_cicada_orgs, keys(local.daimyo_cicada_sandbox_classes)) :
+    "${pair[0]}/${pair[1]}" => merge(local.daimyo_cicada_sandbox_classes[pair[1]], { org = pair[0], name = pair[1] })
+  }
   depends_on = [kubectl_manifest.daimyo_project, kubectl_manifest.daimyo_sandboxclass_crd]
 
   yaml_body = yamlencode({
     apiVersion = "daimyo.shdr.ch/v1alpha1"
     kind       = "SandboxClass"
     metadata = {
-      name      = each.key
-      namespace = "org-cicada"
+      name      = each.value.name
+      namespace = "org-${each.value.org}"
       labels    = local.daimyo_cr_labels
     }
     spec = {
@@ -2209,6 +2280,15 @@ resource "kubectl_manifest" "daimyo_cicada_sandbox_class" {
       maxTtl          = "24h"
     }
   })
+}
+
+moved {
+  from = kubectl_manifest.daimyo_cicada_sandbox_class["seven30"]
+  to   = kubectl_manifest.daimyo_cicada_sandbox_class["cicada/seven30"]
+}
+moved {
+  from = kubectl_manifest.daimyo_cicada_sandbox_class["so"]
+  to   = kubectl_manifest.daimyo_cicada_sandbox_class["cicada/so"]
 }
 
 locals {

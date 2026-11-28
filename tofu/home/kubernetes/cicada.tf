@@ -503,9 +503,10 @@ resource "kubernetes_manifest" "cicada_ingress" {
           toPorts      = [{ ports = [{ port = tostring(local.cicada_port), protocol = "TCP" }] }]
         },
         {
-          # Writers in daimyo's cicada-tasks namespace, /mcp.
-          fromEndpoints = [{
-            matchLabels = { "io.kubernetes.pod.namespace" = "cicada-tasks" }
+          # Writers in the task namespaces of the orgs Cicada works in
+          # (daimyo.tf daimyo_cicada_orgs), /mcp.
+          fromEndpoints = [for org in local.daimyo_cicada_orgs : {
+            matchLabels = { "io.kubernetes.pod.namespace" = "${org}-tasks" }
           }]
           toPorts = [{ ports = [{ port = tostring(local.cicada_port), protocol = "TCP" }] }]
         },
