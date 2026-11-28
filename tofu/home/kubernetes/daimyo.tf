@@ -554,14 +554,15 @@ locals {
   # task's MCP tools from the shell (`tool list|describe|call`, key=@path,
   # --to PATH). omp-dev is not moved: its image needs an attestation.
   daimyo_harness_omp_image             = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-omp@sha256:298d179a27d1ee8b63c6b58d8dd0fb78dcc489c3ce50326c01e30106513781c9"
-  # strands d57b88f4 (main pipeline 19231 build:harness-strands; verify stage ran
-  # 11/11 tests on Bun + @strands-agents/harness@0.6.0 + @strands-agents/sdk@1.27.0):
+  # strands 2c2a5092 (main pipeline 19262 build:harness-strands; verify stage ran
+  # 12/12 tests on Bun + @strands-agents/harness@0.6.0 + @strands-agents/sdk@1.27.0):
   # in-process AWS Strands runner with Monty Python programmatic_tool_caller,
   # native MCP outputSchema + annotations (readOnlyHint:false FIFO queue),
+  # sanitized dotted/overlong MCP tool names (preserving wire server names),
   # chunked image eviction, systemPromptMode: replace, timezone, AgentSkills,
   # SessionManager + cold history replay, DAIMYO_PERMISSION_URL intervention,
   # and daimyo/jobs handshake + completionNotice delivery.
-  daimyo_harness_strands_image         = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-strands@sha256:30e792ab767a7a7278bbecf9d798239ac50e52d2e80ce3614caafb29d1005045"
+  daimyo_harness_strands_image         = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-strands@sha256:f36e8968d23727fbca66f66c79734ac5cde16af775bf384ef6cec2b593820968"
   daimyo_harness_workflow_runner_image = "registry.gitlab.home.shdr.ch/so/daimyo/daimyo-harness-workflow-runner@sha256:0fb31496641d294a7542699c44842834417e400f84ad52e2a399b2ea5327a7da"
   # omp-dev 2849969 (main pipeline 14169 build:harness-omp-dev): the dev
   # toolchains layered on the omp harness above, so `dev` gets omp 18.22.2,
